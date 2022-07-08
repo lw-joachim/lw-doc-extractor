@@ -45,7 +45,8 @@ setup(
     # libraries from PyPI that this project depends on
     install_requires=[
         # example library
-        "k3logging==0.1"
+        "k3logging==0.1",
+        "python-docx"
     ],
     entry_points={
         'console_scripts': [
