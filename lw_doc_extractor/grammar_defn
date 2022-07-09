@@ -1,0 +1,42 @@
+start : _NEWLINE? chapter node_definition+
+
+chapter : _NEWLINE? _node_marker "Chapter" ID _node_body
+  
+node_definition  : _NEWLINE _node_marker node_type? ID _node_body
+
+_node_body : node_properties? start_sequence referenced_sequence*
+
+node_properties: _NEWLINE ( description | image | set_line )
+
+// TODO
+description : line
+image : line
+set_line : line
+
+start_sequence : sequence
+
+referenced_sequence	: _NEWLINE "§" ID sequence
+
+sequence : statement_or_referenced_sequence_or_dialog_line+
+	
+statement_or_referenced_sequence_or_dialog_line : line+
+
+node_type : NODE_TYPE_DIALOG | NODE_TYPE_CUT | NODE_TYPE_GENERIC
+
+NODE_TYPE_DIALOG : "[D-DEF]" | "[D-EAV]"
+
+NODE_TYPE_CUT : "[C-CUT]" | "[C-SEG]"
+
+NODE_TYPE_GENERIC : "Section"
+    
+_node_marker : "*"
+
+line : _NEWLINE /[^\*§].*/
+
+COMMENT: /#[^\n]*/
+_NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
+
+ID : /[A-Za-z0-9\-_]+/
+
+%ignore /[\t \f]+/  // WS
+%ignore COMMENT

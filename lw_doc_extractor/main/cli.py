@@ -8,6 +8,7 @@ import logging
 import k3logging
 
 from lw_doc_extractor import __version__, primitive_doc_parser, doc_parser
+import errno
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
@@ -38,13 +39,11 @@ def main():
         if args.output_images:
             imgOutputPath = os.path.abspath(args.output_images)
         else:
-            imgOutputPath = os.path.join(os.path.dirname(outputPath), "Images")
+            imgOutputPath = os.path.abspath(os.path.join(os.path.dirname(outputPath), "Images"))
             try:
-                os.makedirs(directory)
+                os.makedirs(os.path.dirname(imgOutputPath))
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise
-            os.mkdir(imgOutputPath, mode, dir_fd=None)
-            
         
         doc_parser.parse(args.intput_file, outputPath, imgOutputPath, None)

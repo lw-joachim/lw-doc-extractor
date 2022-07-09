@@ -137,10 +137,10 @@ def create_nodedict_from_node_content(nodeId, nodeContent):
     nodeResDict["external_links"] = external_links
     return nodeResDict
 
-def parse_node_definition_properties(lines):
+def parse_node_definition_properties(augmented_lines):
     return {}
 
-def parse_node_definition(lines):
+def split_node_definition(augmented_lines):
     
     propertySection = []
     startSection = []
@@ -150,38 +150,31 @@ def parse_node_definition(lines):
     
     inPropertiesSection = True
     
-    for line in lines:
+    for augline in restRefSections[currentRefSection]:
+        ref, line = augline
         if inPropertiesSection:
             if line.startswith("§"):
-                raise RuntimeError("Cannot have an § reference before there is a single statement with -")
-            if (line.startswith("-")):
+                raise RuntimeError(f"Cannot have an § reference before there is a single statement with - in {ref}")
+            if line.startswith("-"):
                 inPropertiesSection = False
-                startSection.append(line)
+                startSection.append(augline)
             else:
-                propertySection.append(line)
+                propertySection.append(augline)
         else:
             m = REFENCE_MATCHER.match(line)
             if m:
                 if currentRefSection:
                     if len(restRefSections[currentRefSection]) == 0:
-                        raise RuntimeError(f"Section {currentRefSection} needs to have at least one statement '-'")
+                        raise RuntimeError(f"Section {currentRefSection} needs to have at least one statement '-'. {ref}")
                 currentRefSection = m.group(1)
                 restRefSections[currentRefSection] = []
             else:
                 if not currentRefSection:
-                    startSection.append(line)
+                    startSection.append(augline)
                 else:
-                    restRefSections[currentRefSection].append(line)
-            
-        
-        
-        
-    
-    nodeProperties = parse_node_definition_properties()
-    
-
-    
-    pass
+                    restRefSections[currentRefSection].append(augline)
+                    
+    return propertySection, startSection, restRefSections
 
 
 def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
@@ -189,7 +182,7 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
     logger.info(f"Doc number of paragraphs: {len(doc.paragraphs)}")
     logger.info(f"Doc number of inline shapes: {len(doc.inline_shapes)}")
     
-    export_imgs(inputWordDoc, outputImageDir)
+    #export_imgs(inputWordDoc, outputImageDir)
     
     # Matches node definition line (Chapter, section & nodes)
     nodeDefnMatcher = re.compile("\s*\*\s*([\[\]A-Za-z\-]+)\s+([A-Za-z\-_0-9]+)(.*)")
@@ -199,6 +192,8 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
     currentNodeId = None
     
     imageDict = {}
+    
+    lines = []
     
     for i, p in enumerate(doc.paragraphs):
         
@@ -223,7 +218,7 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
             currentNodeId = nodeId
             logger.info(f"id:{m.group(2)}, type:{nodeType[nodeId]}")
         elif currrentLine.startswith("*"):
-            logger.warning("Line starts with * but was not detected as node definition: {currrentLine}")
+            logger.warning(f"Line starts with * but was not detected as node definition: {currrentLine} at paragraph {i}")
             if currentNodeId:
                 nodesContent.pop(currentNodeId)
                 nodeType.pop(currentNodeId)
@@ -238,14 +233,20 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
                 else:
                     imageDict[nodeId] = currImgId
                     logger.debug(f"Image for {nodeId}: {currImgId}")
+                    lines.append(f"<img>image{currImgId}")
                     nodesContent[currentNodeId].append(f"<img>image{currImgId}")
             if currentNodeId:
-                nodesContent[currentNodeId].append(currrentLine)
+                nodesContent[currentNodeId].append((i, currrentLine))
                 
-    for nodeId in nodesContent:
-        nodeProperties, nodeMainRun, referenceToSubRunsDict = 
+        lines.append(currrentLine)
         
-    
+    from lw_doc_extractor import lexer
+    lexer.parse(lines)
+                
+    # for nodeId in nodesContent:
+    #     nodePropertyLines, nodeMainRunLines, referenceToSubRunsDict = split_node_definition(nodesContent[currentNodeId])
+    #
+    #     nodePropertyDict = parse_node_definition_properties(nodePropertyLines)
     
     #print(json.dumps(nodesContent, indent=2))
     
