@@ -6,21 +6,62 @@ node_definition  : _NEWLINE _node_marker node_type? ID _node_body
 
 _node_body : node_properties? start_sequence referenced_sequence*
 
-node_properties: _NEWLINE ( description | image | set_line )
+node_properties:  ( description | image | set_line )
 
 // TODO
 description : line
 image : line
 set_line : line
 
+
+// sequence defn
 start_sequence : sequence
-
 referenced_sequence	: _NEWLINE "§" ID sequence
+sequence : outer_statement+
+inner_sequence: inner_statement+
 
-sequence : statement_or_referenced_sequence_or_dialog_line+
-	
-statement_or_referenced_sequence_or_dialog_line : line+
 
+// Statement stuff
+outer_statement : load_stage_statement | game_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | jump_statement
+inner_statement : set_statement | node_ref_statement | simple_dialog_statement | jump_statement
+
+load_stage_statement :  _NEWLINE "-" "LOAD_STAGE" REST_OF_LINE
+game_event_statement :  _NEWLINE "-" "GAME_EVENT" REST_OF_LINE
+set_statement : _NEWLINE "-" "SET" INSTRUCTION
+node_ref_statement : _NEWLINE "-" "*" ID
+simple_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE /[^\n]+/
+spoken_line : _NEWLINE SPOKEN_LINE
+jump_statement : _NEWLINE ( INTERNAL_JUMP | EXTERNAL_JUMP) ID
+
+choice_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE player_choice_block
+player_choice_block : "PLAYER_CHOICE" player_choice+ _NEWLINE "PLAYER_CHOICE_END"
+player_choice : _NEWLINE "Θ" "[" MENU_TEXT "]" REST_OF_LINE?  inner_sequence+
+
+
+if_block : _NEWLINE "IF" REST_OF_LINE inner_sequence+ _NEWLINE "ELSE" inner_sequence+ _NEWLINE "ENDIF"
+hub_statement_block :  _NEWLINE "-" "HUB" hub_choice+ _NEWLINE "HUB_CHOICE_END"
+hub_choice : _NEWLINE "Θ" REST_OF_LINE inner_sequence+
+
+
+MENU_TEXT : /[^\]]+/
+
+// Missing P on purpose 
+//SPOKEN_LINE: /[^\n](?!LAYER_CHOICE).*/
+SPOKEN_LINE: /[^\n]+/
+
+INTERNAL_JUMP : ">"
+EXTERNAL_JUMP : "►"
+
+ENTITY_NAME : /[A-Z]+/ ENTITY_COUNTER?
+ENTITY_COUNTER : /\s*[0-9]+/
+
+INSTRUCTION : /[^\n].*/
+REST_OF_LINE : /[^\n].*/
+
+//statement_or_referenced_sequence_or_dialog_line : line+
+
+
+// node type
 node_type : NODE_TYPE_DIALOG | NODE_TYPE_CUT | NODE_TYPE_GENERIC
 
 NODE_TYPE_DIALOG : "[D-DEF]" | "[D-EAV]"
@@ -31,12 +72,15 @@ NODE_TYPE_GENERIC : "Section"
     
 _node_marker : "*"
 
-line : _NEWLINE /[^\*§].*/
+line : _NEWLINE /[^\*§\n].*/
 
-COMMENT: /#[^\n]*/
+COMMENT: /\([^\)]*\)/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 ID : /[A-Za-z0-9\-_]+/
+
+%ignore "\n…"
+%ignore "\n..."
 
 %ignore /[\t \f]+/  // WS
 %ignore COMMENT

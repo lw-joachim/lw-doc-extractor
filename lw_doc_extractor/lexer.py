@@ -52,5 +52,5 @@ def parse(lines):
     
     print(fileCont)
     print("======================")
-    ret = Lark(fileCont, start='start', parser='earley').parse(cont)
+    ret = Lark(fileCont, start='start', parser='earley', debug=True).parse(cont)
     print(ret.pretty())
