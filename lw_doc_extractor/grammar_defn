@@ -22,32 +22,32 @@ inner_sequence: inner_statement+
 
 
 // Statement stuff
-outer_statement : load_stage_statement | game_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | jump_statement
-inner_statement : set_statement | node_ref_statement | simple_dialog_statement | jump_statement
+?outer_statement : load_stage_statement | game_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | jump_statement
+?inner_statement : set_statement | node_ref_statement | simple_dialog_statement | jump_statement
 
 load_stage_statement :  _NEWLINE "-" "LOAD_STAGE" REST_OF_LINE
 game_event_statement :  _NEWLINE "-" "GAME_EVENT" REST_OF_LINE
 set_statement : _NEWLINE "-" "SET" INSTRUCTION
-node_ref_statement : _NEWLINE "-" "*" ID
-simple_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE /[^\n]+/
-spoken_line : _NEWLINE SPOKEN_LINE
+node_ref_statement : _NEWLINE "-" "*" ID conditional? exit_instruction?
+simple_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE SPOKEN_TEXT
 jump_statement : _NEWLINE ( INTERNAL_JUMP | EXTERNAL_JUMP) ID
 
 choice_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" player_choice+ _NEWLINE "PLAYER_CHOICE_END"
-player_choice : _NEWLINE "Θ" "[" MENU_TEXT "]" REST_OF_LINE?  inner_sequence+
+player_choice : _NEWLINE "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? conditional? exit_instruction? inner_sequence+
 
 
 if_block : _NEWLINE "IF" REST_OF_LINE inner_sequence+ _NEWLINE "ELSE" inner_sequence+ _NEWLINE "ENDIF"
 hub_statement_block :  _NEWLINE "-" "HUB" hub_choice+ _NEWLINE "HUB_CHOICE_END"
-hub_choice : _NEWLINE "Θ" REST_OF_LINE inner_sequence+
+hub_choice : _NEWLINE "Θ" REST_OF_LINE_TEXT conditional? exit_instruction? inner_sequence+
 
+conditional : _NEWLINE "IF" REST_OF_LINE_TEXT
+exit_instruction : _NEWLINE "SET" REST_OF_LINE_TEXT
 
 MENU_TEXT : /[^\]]+/
 
-// Missing P on purpose 
-//SPOKEN_LINE: /[^\n](?!LAYER_CHOICE).*/
-SPOKEN_LINE: /[^\n]+/
+SPOKEN_TEXT: /[^\n]+/
+REST_OF_LINE_TEXT : /[^\n]+/
 
 INTERNAL_JUMP : ">"
 EXTERNAL_JUMP : "►"
@@ -57,8 +57,6 @@ ENTITY_COUNTER : /\s*[0-9]+/
 
 INSTRUCTION : /[^\n].*/
 REST_OF_LINE : /[^\n].*/
-
-//statement_or_referenced_sequence_or_dialog_line : line+
 
 
 // node type
@@ -72,7 +70,7 @@ NODE_TYPE_GENERIC : "Section"
     
 _node_marker : "*"
 
-line : _NEWLINE /[^\*§\n].*/
+line.9 : _NEWLINE /[^\*§\n].*/
 
 COMMENT: /\([^\)]*\)/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
