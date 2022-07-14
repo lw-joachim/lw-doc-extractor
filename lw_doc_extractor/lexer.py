@@ -10,6 +10,7 @@ import lark
 import os
 import logging
 import collections
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class StatementTransformer(lark.Transformer):
         return "NODE_REF", items[0].value, condition, instruction
     
     def load_stage_statement(self, items):
-        return "LOAD_STAGRE", items[0].value
+        return "LOAD_STAGE", items[0].value
     
     def sync_game_event_statement(self, items):
         return "SYNC_GAME_EVENT", items[0].value
@@ -72,7 +73,7 @@ class StatementTransformer(lark.Transformer):
         return "GAME_EVENT", items[0].value
     
     def hub_choice(self, items):
-        returnDict = {}
+        returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "REST_OF_LINE_TEXT":
@@ -121,15 +122,17 @@ class StatementTransformer(lark.Transformer):
     
     def player_choice_block(self, items):
         # items are already a list of choices
-        return list(items)
+        return items
     
     def choice_dialog_statement(self, items):
-        return "CHOICE_DIALOG", {"entity" : items[0].value, "choices" : items[1:]}
+        return "CHOICE_DIALOG", {"entity" : items[0].value, "choices" : items[1]}
     
     def sequence(self, items):
         return items
-
-
+    
+    def if_block(self, items):
+        ret =  "IF", {"eval_condition" : items[0].value, "sequence_true":items[1].children, "sequence_false": items[2].children}
+        return ret
 
 class DocTransformer(lark.Transformer):
     
@@ -138,12 +141,21 @@ class DocTransformer(lark.Transformer):
     
     def start_node(self, items):
         rd = self.node_definition(items)
-        rd["node_type"] = "chapter"
+        rd["node_type"] = "Chapter"
         return rd
     
+    def _p_node_properties(self, node_prop, nodeDict):
+        for item in node_prop.children:
+            if item.data == "description":
+                nodeDict["description"] = item.children[0].value
+            if item.data == "image":
+                nodeDict["image"] =item.children[0].value
+
     def node_definition(self, items):
-        nodeDict = {"id" : None, "node_type" : None, "start_sequence" : None, "referenced_sequences": collections.OrderedDict(), "node_properties" : None}
+        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "start_sequence" : None, "referenced_sequences": collections.OrderedDict()}
         for item in items:
+            # print("=============")
+            # print(type(item))
             if type(item) == lark.Token:
                 if item.type == "ID":
                     nodeDict["id"] = item.value
@@ -157,33 +169,24 @@ class DocTransformer(lark.Transformer):
                 elif item.data == "referenced_sequence":
                     nodeDict["referenced_sequences"][item.children[0].value] = item.children[1]
                 elif item.data == "node_properties":
-                    nodeDict["node_properties"] = item.children
+                    self._p_node_properties(item, nodeDict)
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_definition")
             else:
                 raise RuntimeError(f"Unexpected type in node_definition {item}")
-            
+        print(nodeDict["id"])
         return nodeDict
 
 def parse(lines):
-    for i, l in enumerate(lines):
-        print(f"{l}")
-        
-        
-    for i, l in enumerate(lines):
-        print(f"{i:<3} {l}")
-        
-        
     cont = "\n".join(lines)
     
     with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
         fileCont = f.read()
     
-    print(fileCont)
     print("======================")
     tree = lark.Lark(fileCont, start='start', parser='earley', debug=True).parse(cont)
     
-    print_rec(tree)
+    #print_rec(tree)
     
     # for c in tree.children:
     #     if type(c) == lark.Token:
@@ -204,23 +207,45 @@ def parse(lines):
     #                     return
     
     n = StatementTransformer().transform(tree)
-    # print("======================")
-    # print_rec(n)
-    # print("======================")
     n = DocTransformer().transform(n)
     
-    print("=======\nChapter node:")
-    print_node("", n["chapter_node"])
-    print("=======\nNodes")
-    for restNode in n["nodes"]:
-        print_node("", restNode)
+    # print("=======\nChapter node:")
+    # print_node("", n["chapter_node"])
+    # print("=======\nNodes")
+    # for restNode in n["nodes"]:
+    #     print_node("", restNode)
+        
+    logger.info("Lexing complete")
+
+    return n
     
 def pp(prefix, txt):
     print(prefix+str(txt))
     
+def pp_dict(prefix, d, exclKeys=[]):
+    dcpy = dict(d)
+    for k in exclKeys:
+        dcpy.pop(k)
+    print(prefix+str(dcpy))
+    
 def p_inner_seq(prefix, seq):
     for st in seq:
-        pp(prefix, st)
+        if type(st) == lark.Tree:
+            pp(prefix, st)
+        elif st[0] == "CHOICE_DIALOG":
+            pp(prefix, "CHOICE_DIALOG")
+            for choice in st[1]["choices"]:
+                pp_dict(prefix+"  ", choice, ["sequence"])
+                for s in choice["sequence"]:
+                    pp(prefix+"    ", s)
+        elif st[0] == "HUB":
+            pp(prefix, "HUB")
+            for choice in st[1]:
+                pp_dict(prefix+"  ", choice, ["sequence"])
+                for s in choice["sequence"]:
+                    pp(prefix+"    ", s)
+        else:  
+            pp(prefix, st)
 
 def print_node(prefix, nodeDict):
     pp(prefix, "*"+nodeDict["id"] +"(" +nodeDict["node_type"]+ ")")

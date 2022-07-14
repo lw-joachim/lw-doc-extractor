@@ -182,6 +182,35 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
     logger.info(f"Doc number of paragraphs: {len(doc.paragraphs)}")
     logger.info(f"Doc number of inline shapes: {len(doc.inline_shapes)}")
     
+    lines = []
+    imageCounter = 0
+    
+    for i, p in enumerate(doc.paragraphs):
+        #logger.debug(str(i)+" "+p.text)
+        currrentLine = p.text.strip()
+        if "<w:drawing>" in str(p._p.xml):
+            imgIdStr = f"<IMAGE {imageCounter}>"
+            logger.info(f"Inserted {imgIdStr}")
+            lines.append(imgIdStr)
+            imageCounter += 1
+        if not currrentLine:
+            continue
+        lines.append(currrentLine)
+    
+    from lw_doc_extractor import lexer, story_compiler
+    ast = lexer.parse(lines)
+    
+    with open("lexer_output.json", "w") as fh:
+        json.dump(ast, fh, indent=2)
+    
+    resultJson = story_compiler.compile_story(ast)
+    
+
+def _old_parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
+    doc = docx.Document(inputWordDoc)
+    logger.info(f"Doc number of paragraphs: {len(doc.paragraphs)}")
+    logger.info(f"Doc number of inline shapes: {len(doc.inline_shapes)}")
+    
     #export_imgs(inputWordDoc, outputImageDir)
     
     # Matches node definition line (Chapter, section & nodes)
@@ -237,7 +266,7 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
                     nodesContent[currentNodeId].append(f"<img>image{currImgId}")
             if currentNodeId:
                 nodesContent[currentNodeId].append((i, currrentLine))
-                
+            
         lines.append(currrentLine)
         
     from lw_doc_extractor import lexer

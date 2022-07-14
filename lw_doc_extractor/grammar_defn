@@ -6,12 +6,11 @@ node_definition  : _NEWLINE _node_marker node_type? ID _node_body
 
 _node_body : node_properties? start_sequence referenced_sequence*
 
-node_properties:  ( description | image )
-
-// TODO
-description : line
-image : line
-set_line : line
+// node properties
+node_properties:  description? image?
+description : _NEWLINE DESCRIPTION_TXT
+image : _NEWLINE /<IMAGE +[0-9]+>/
+DESCRIPTION_TXT : /[^\*§\n\-].*/
 
 
 // sequence defn
@@ -64,13 +63,9 @@ REST_OF_LINE : /[^\n].*/
 
 
 // node type
-node_type : NODE_TYPE_DIALOG | NODE_TYPE_CUT | NODE_TYPE_GENERIC
+node_type : "["? NODE_TYPES "]"?
 
-NODE_TYPE_DIALOG : "[D-DEF]" | "[D-EAV]"
-
-NODE_TYPE_CUT : "[C-CUT]" | "[C-SEG]"
-
-NODE_TYPE_GENERIC : "Section"
+NODE_TYPES : "D-DEF" | "D-EAV" | "C-CUT" | "C-SEG" | "Section"
     
 _node_marker : "*"
 
