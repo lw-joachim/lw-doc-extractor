@@ -7,8 +7,8 @@ node_definition  : _NEWLINE _node_marker node_type? ID _node_body
 _node_body : node_properties? start_sequence referenced_sequence*
 
 // node properties
-node_properties:  description? image?
-description : _NEWLINE DESCRIPTION_TXT
+node_properties:  node_description? image?
+node_description : _NEWLINE DESCRIPTION_TXT
 image : _NEWLINE /<IMAGE +[0-9]+>/
 DESCRIPTION_TXT : /[^\*§\n\-].*/
 
@@ -21,39 +21,44 @@ inner_sequence: inner_statement+
 
 
 // Statement stuff
-?outer_statement : load_stage_statement | game_event_statement | sync_game_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | jump_statement | start_quest | end_quest
-?inner_statement : set_statement | node_ref_statement | simple_dialog_statement | jump_statement | start_quest | end_quest
+?outer_statement : load_stage_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | start_quest_statement | end_quest_statement
+?inner_statement : set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | start_quest_statement | end_quest_statement
 
-load_stage_statement :  _NEWLINE "-" "LOAD_STAGE" REST_OF_LINE
-game_event_statement :  _NEWLINE "-" "GAME_EVENT" REST_OF_LINE
-sync_game_event_statement :  _NEWLINE "-" "SYNC_GAME_EVENT" REST_OF_LINE
+load_stage_statement :  _NEWLINE "-" "LOAD_STAGE" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+stage_event_statement :  _NEWLINE "-" "STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+sync_stage_event_statement :  _NEWLINE "-" "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+game_event_listener_statement :  _NEWLINE "-" "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 set_statement : _NEWLINE "-" "SET" INSTRUCTION
-node_ref_statement : _NEWLINE "-" "*" ID conditional? exit_instruction?
+node_ref_statement : _NEWLINE "-" "*" ID condition? exit_instruction?
 simple_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE SPOKEN_TEXT
-jump_statement : _NEWLINE ( INTERNAL_JUMP | EXTERNAL_JUMP) ID
 
-start_quest : _NEWLINE "-" "START_QUEST" REST_OF_LINE_TEXT
-end_quest : _NEWLINE "-" "END_QUEST" REST_OF_LINE_TEXT
+internal_jump_statement : _NEWLINE ">" REFERENCED_ID
+external_jump_statement : _NEWLINE "►" REFERENCED_ID
+
+start_quest_statement : _NEWLINE "-" "START_QUEST" QUEST_ID
+end_quest_statement : _NEWLINE "-" "END_QUEST" QUEST_ID
 
 choice_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" player_choice+ _NEWLINE "PLAYER_CHOICE_END"
-player_choice : _NEWLINE "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? conditional? exit_instruction? inner_sequence
+player_choice : _NEWLINE "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? condition? exit_instruction? inner_sequence
 
 
 if_block : _NEWLINE "IF" REST_OF_LINE inner_sequence _NEWLINE "ELSE" inner_sequence _NEWLINE "ENDIF"
-hub_statement_block :  _NEWLINE "-" "HUB" hub_choice+ _NEWLINE "HUB_CHOICE_END"
-hub_choice : _NEWLINE "Θ" REST_OF_LINE_TEXT conditional? exit_instruction? inner_sequence
 
-conditional : _NEWLINE "IF" REST_OF_LINE_TEXT
+hub_statement_block :  _NEWLINE "-" "HUB" hub_choice+ _NEWLINE "HUB_CHOICE_END"
+hub_choice : _NEWLINE "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? condition? exit_instruction? inner_sequence
+
+condition : _NEWLINE "IF" REST_OF_LINE_TEXT
 exit_instruction : _NEWLINE "SET" REST_OF_LINE_TEXT
+
+STATEMENT_DESCRIPTION : /[^\n\{]+/
+EVENT_ID : /[A-Za-z0-9\-_:]+/
 
 MENU_TEXT : /[^\]]+/
 
 SPOKEN_TEXT: /[^\n]+/
+QUEST_ID : /[^\n]+/
 REST_OF_LINE_TEXT : /[^\n]+/
-
-INTERNAL_JUMP : ">"
-EXTERNAL_JUMP : "►"
 
 ENTITY_NAME : /[A-Z]+/ ENTITY_COUNTER?
 ENTITY_COUNTER : /\s*[0-9]+/
@@ -75,6 +80,7 @@ COMMENT: /\([^\)]*\)/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 ID : /[A-Za-z0-9\-_]+/
+REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
 %ignore "\n…"
 %ignore "\n..."

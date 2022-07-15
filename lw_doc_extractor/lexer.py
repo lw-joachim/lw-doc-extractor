@@ -40,48 +40,92 @@ _FILE_LOC = os.path.abspath(os.path.dirname(__file__))
 # """, start='script', parser='earley')
 
 class StatementTransformer(lark.Transformer):
-    def simple_dialog_statement(self, items):
-        return "DIALOG_LINE", items[0].value, items[1].value
-    
-    def jump_statement(self, items):
-        return items[0].type, items[1].value
-    
-    def start_quest(self, items):
-        return "START_QUEST", items[0].value
-    
-    def end_quest(self, items):
-        return "END_QUEST", items[0].value
-    
-    def node_ref_statement(self, items):
-        condition = None
-        instruction = None
-        for item in items:
-            if type(item) == lark.Tree:
-                if item.data == "conditional":
-                    condition = item.children[0].value
-                elif item.data == "exit_instruction":
-                    instruction = item.children[0].value
-        return "NODE_REF", items[0].value, condition, instruction
-    
-    def load_stage_statement(self, items):
-        return "LOAD_STAGE", items[0].value
-    
-    def sync_game_event_statement(self, items):
-        return "SYNC_GAME_EVENT", items[0].value
-    
-    def game_event_statement(self, items):
-        return "GAME_EVENT", items[0].value
-    
-    def hub_choice(self, items):
-        returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
+
+    def _process_generic_statement_args(self, items):
+        resp = {}
         for item in items:
             if type(item) == lark.Token:
-                if item.type == "REST_OF_LINE_TEXT":
+                resp[item.type.lower()] = item.value
+            elif type(item) == lark.Tree:
+                if item.data == "condition":
+                    resp['condition'] = item.children[0].value
+                elif item.data == "exit_instruction":
+                    resp['instruction'] = item.children[0].value
+        return resp
+        
+    def simple_dialog_statement(self, items):
+        #return "DIALOG_LINE", items[0].value, items[1].value
+        return "DIALOG_LINE" , self._process_generic_statement_args(items)
+    
+    def internal_jump_statement(self, items):
+        return "INTERNAL_JUMP", self._process_generic_statement_args(items)
+    
+    def external_jump_statement(self, items):
+        return "EXTERNAL_JUMP", self._process_generic_statement_args(items)
+    
+    def start_quest_statement(self, items):
+        return "START_QUEST", self._process_generic_statement_args(items)
+    
+    def end_quest_statement(self, items):
+        return "END_QUEST", self._process_generic_statement_args(items)
+    
+    def load_stage_statement(self, items):
+        return "LOAD_STAGE", self._process_generic_statement_args(items)
+    
+    def sync_stage_event_statement(self, items):
+        return "SYNC_STAGE_EVENT", self._process_generic_statement_args(items)
+    
+    def stage_event_statement(self, items):
+        return "STAGE_EVENT", self._process_generic_statement_args(items)
+    
+    def game_event_listener_statement(self, items):
+        return "GAME_EVENT_LISTENER", self._process_generic_statement_args(items)
+    
+    def node_ref_statement(self, items):
+        # condition = None
+        # instruction = None
+        # for item in items:
+        #     if type(item) == lark.Tree:
+        #         if item.data == "condition":
+        #             condition = item.children[0].value
+        #         elif item.data == "exit_instruction":
+        #             instruction = item.children[0].value
+        # return "NODE_REF", items[0].value, condition, instruction
+        return "NODE_REF", self._process_generic_statement_args(items)
+    
+    # def _process_generic_statement(self, name, *args, **kwargs):
+    #     items = args[0]
+    #     statement = name[:-len("_statement")]
+    #     resp = {}
+    #     for item in items:
+    #         if type(item) == lark.Token:
+    #             resp[item.type.lower()] = item.value
+    #         elif type(item) == lark.Tree:
+    #             if item.data == "condition":
+    #                 resp['condition'] = item.children[0].value
+    #             elif item.data == "exit_instruction":
+    #                 resp['instruction'] = item.children[0].value
+    #     return statement.upper(), resp
+    #
+    # def __getattr__(self, name):
+    #     print(name)
+    #     if name.lower().endswith("_statement"):
+    #         def method(*args, **kwargs):
+    #             return self._process_generic_statement(name, *args, **kwargs)
+    #     raise AttributeError(f"Name {name} not part of {type(self)}")
+    
+    def hub_choice(self, items):
+        returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None, "event_id" : None}
+        for item in items:
+            if type(item) == lark.Token:
+                if item.type == "STATEMENT_DESCRIPTION":
                     returnDict["choice_description"] = item.value
+                elif item.type == "EVENT_ID":
+                    returnDict["event_id"] = item.value
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
             elif type(item) == lark.Tree:
-                if item.data == "conditional":
+                if item.data == "condition":
                     returnDict["condition"] = item.children[0].value
                 elif item.data == "exit_instruction":
                     returnDict["exit_instruction"] = item.children[0].value
@@ -97,7 +141,7 @@ class StatementTransformer(lark.Transformer):
         return "HUB", items
     
     def player_choice(self, items):
-        returnDict = {}
+        returnDict = {"menu_text" : None, "spoken_text" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
@@ -108,7 +152,7 @@ class StatementTransformer(lark.Transformer):
                     #logger.warning("Unexpected token in ")
                     raise RuntimeError(f"Unexpected token {item.type} in player_choice")
             elif type(item) == lark.Tree:
-                if item.data == "conditional":
+                if item.data == "condition":
                     returnDict["condition"] = item.children[0].value
                 elif item.data == "exit_instruction":
                     returnDict["exit_instruction"] = item.children[0].value
@@ -125,7 +169,7 @@ class StatementTransformer(lark.Transformer):
         return items
     
     def choice_dialog_statement(self, items):
-        return "CHOICE_DIALOG", {"entity" : items[0].value, "choices" : items[1]}
+        return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[1]}
     
     def sequence(self, items):
         return items
@@ -146,7 +190,7 @@ class DocTransformer(lark.Transformer):
     
     def _p_node_properties(self, node_prop, nodeDict):
         for item in node_prop.children:
-            if item.data == "description":
+            if item.data == "node_description":
                 nodeDict["description"] = item.children[0].value
             if item.data == "image":
                 nodeDict["image"] =item.children[0].value
@@ -209,11 +253,11 @@ def parse(lines):
     n = StatementTransformer().transform(tree)
     n = DocTransformer().transform(n)
     
-    # print("=======\nChapter node:")
-    # print_node("", n["chapter_node"])
-    # print("=======\nNodes")
-    # for restNode in n["nodes"]:
-    #     print_node("", restNode)
+    print("=======\nChapter node:")
+    print_node("", n["chapter_node"])
+    print("=======\nNodes")
+    for restNode in n["nodes"]:
+        print_node("", restNode)
         
     logger.info("Lexing complete")
 
@@ -250,7 +294,8 @@ def p_inner_seq(prefix, seq):
 def print_node(prefix, nodeDict):
     pp(prefix, "*"+nodeDict["id"] +"(" +nodeDict["node_type"]+ ")")
     prefix+="  "
-    pp(prefix , "node_properties : " + str(nodeDict["node_properties"] ))
+    pp(prefix , "description : " + str(nodeDict["description"] ))
+    pp(prefix , "image : " + str(nodeDict["image"] ))
     pp(prefix, "start_sequence")
     p_inner_seq(prefix+"  ", nodeDict["start_sequence"])
     for k, v in nodeDict["referenced_sequences"].items():
