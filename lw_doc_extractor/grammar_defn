@@ -9,7 +9,7 @@ _node_body : node_properties? start_sequence referenced_sequence*
 // node properties
 node_properties:  node_description? image?
 node_description : _NEWLINE DESCRIPTION_TXT
-image : _NEWLINE /<IMAGE +[0-9]+>/
+image : _NEWLINE "<" /IMAGE +[0-9]+/ ">"
 DESCRIPTION_TXT : /[^\*§\n\-].*/
 
 
@@ -21,16 +21,22 @@ inner_sequence: inner_statement+
 
 
 // Statement stuff
-?outer_statement : load_stage_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | start_quest_statement | end_quest_statement
-?inner_statement : set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | start_quest_statement | end_quest_statement
+?outer_statement : load_stage_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | hub_statement_block | choice_dialog_statement | if_block | set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | start_quest_statement | end_quest_statement | the_end_statement | mindset_notification_statement | wiki_notification_statement
+?inner_statement : set_statement | node_ref_statement | simple_dialog_statement | internal_jump_statement | external_jump_statement | game_event_listener_statement | stage_event_statement | sync_stage_event_statement | start_quest_statement | end_quest_statement | mindset_notification_statement | wiki_notification_statement
 
 load_stage_statement :  _NEWLINE "-" "LOAD_STAGE" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 stage_event_statement :  _NEWLINE "-" "STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 sync_stage_event_statement :  _NEWLINE "-" "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 game_event_listener_statement :  _NEWLINE "-" "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+
+mindset_notification_statement :  _NEWLINE "-" "MINDSET_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+wiki_notification_statement :  _NEWLINE "-" "WIKI_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+
 set_statement : _NEWLINE "-" "SET" INSTRUCTION
 node_ref_statement : _NEWLINE "-" "*" ID condition? exit_instruction?
 simple_dialog_statement : _NEWLINE ENTITY_NAME _NEWLINE SPOKEN_TEXT
+the_end_statement :  _NEWLINE "-" "THE_END" STATEMENT_DESCRIPTION?
+
 
 internal_jump_statement : _NEWLINE ">" REFERENCED_ID
 external_jump_statement : _NEWLINE "►" REFERENCED_ID

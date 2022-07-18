@@ -6,7 +6,9 @@ Created on 13 Jul 2022
 import json
 import collections
 import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 NODE_TITLE_MATCHER = re.compile("[^{]+{([^}])}")
 
@@ -35,6 +37,26 @@ def get_processing_order(currNodeId, nodeIdToChildIdsDict):
             ret.extend(get_processing_order(cNodeId, nodeIdToChildIdsDict))
     return ret
 
+# Automatically linking squences to a hub
+# rules for automatically creating a link to a hub are
+#  - if last item in sequence is not a jump, choice, hub, if or a node ref
+#  - then link to the current nodes hub
+#  - if that doesnt exist then link to the hub in the parent
+#  - if that doesnt exist raise an error
+def auto_link_hub(sequenceDict, currentHub, parentHub):
+    for seqId in sequenceDict:
+        if sequenceDict[seqId][-1][0] == "THE_END":
+            continue
+        if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP"]:
+            if currentHub != None:
+                sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : currentHub}))
+                logger.debug(f"For sequence {seqId} adding internal jump to {currentHub}")
+            elif parentHub != None:
+                sequenceDict[seqId].append(("EXTERNAL_JUMP", {"referenced_id" : parentHub}))
+                logger.debug(f"For sequence {seqId} adding external jump to {parentHub}")
+            else:
+                raise RuntimeError(f"Cannot fix sequence {seqId}.")
+    
 
 # creates new sequences for instructions for hub, dialog choide and if and
 # replaces instructions with references
@@ -135,19 +157,25 @@ def _collapse_links(sequences):
     return retDict
 
 
-def process_node(nodeDefnDict, nodeIdToParentIdDict, nodeIdToChildIdsDict):
+def process_node(nodeDefnDict, parentId, childIds, parentHub):
     nodeId = nodeDefnDict["id"]
-    print("============")
-    print(nodeId)
+    
+    # array to keep track of nodes that have been referenced to determine which have not
+    nodesReferenced = []
+    
+    # print("======!!!!!!")
+    # print(nodeId)
+    # print(json.dumps(nodeDefnDict, indent=2))
     
     sequenceIds = ["start_sequence"]
     for k in nodeDefnDict["referenced_sequences"]:
         sequenceIds.append(k)
     
     flattenedSequences , sequenceStartPos = flatten_sequences(sequenceIds, nodeDefnDict)
-    # sequenceStartPos = get_flat_seq_pas(flattenedSequences)
+    #print(json.dumps(flattenedSequences, indent=2))
     
-    print(json.dumps(flattenedSequences, indent=2))
+    # inplace
+    auto_link_hub(flattenedSequences, _get_hub_id(nodeDefnDict), parentHub)
     
     
     instructions = []
@@ -157,8 +185,8 @@ def process_node(nodeDefnDict, nodeIdToParentIdDict, nodeIdToChildIdsDict):
     seqenceToNodeIntId = {}
 
     collapsedSequenceIdToTarget = _collapse_links(flattenedSequences)
-    print("==== Collapsed list")
-    print(json.dumps(collapsedSequenceIdToTarget, indent =2 ))
+    # print("==== Collapsed list")
+    # print(json.dumps(collapsedSequenceIdToTarget, indent =2 ))
     
     currIntNode = nodeId
     
@@ -204,6 +232,8 @@ def process_node(nodeDefnDict, nodeIdToParentIdDict, nodeIdToChildIdsDict):
                     for c in instrPrmDict["choices"]:
                         jumpsToProcess.append((internal_id, c["sequence_ref"]))
                     instrPrms = {}
+                elif instType == "NODE_REF":
+                    nodesReferenced.append(instrPrmDict["id"])
                 
                 instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "sequence_id": sequenceId}
                 instructions.append(instrDict)
@@ -221,14 +251,14 @@ def process_node(nodeDefnDict, nodeIdToParentIdDict, nodeIdToChildIdsDict):
         # Important: no link accross sequences
         currIntNode = None
         
-    print("==== Genreated instructions list")
-    print(json.dumps(instructions, indent =2 ))
-    print("==== Jumps to process ")
-    print(json.dumps(jumpsToProcess, indent =2 ))
-    print("==== Anon choices to process ")
-    print(json.dumps(anonChoicesThatCanBeLinkedTo, indent =2 ))
-    print("==== seqenceToNodeIntId: ")
-    print(json.dumps(seqenceToNodeIntId, indent =2 ))
+    # print("==== Genreated instructions list")
+    # print(json.dumps(instructions, indent =2 ))
+    # print("==== Jumps to process ")
+    # print(json.dumps(jumpsToProcess, indent =2 ))
+    # print("==== Anon choices to process ")
+    # print(json.dumps(anonChoicesThatCanBeLinkedTo, indent =2 ))
+    # print("==== seqenceToNodeIntId: ")
+    # print(json.dumps(seqenceToNodeIntId, indent =2 ))
     
     for srcInternId, targetSequennce in jumpsToProcess:
         if targetSequennce in collapsedSequenceIdToTarget:
@@ -247,77 +277,73 @@ def process_node(nodeDefnDict, nodeIdToParentIdDict, nodeIdToChildIdsDict):
             internalLinks.append((srcInternId, seqenceToNodeIntId[targetSequennce]))
             
         
-    print("==== Internal links")
-    print(json.dumps(internalLinks, indent =2 ))
-    print("==== External links")
-    print(json.dumps(externalLinks, indent =2 ))
-            
-    for srcSequence, targetSequennce in anonChoicesThatCanBeLinkedTo:
-        pass
-                    
-        
+    # print("==== Internal links")
+    # print(json.dumps(internalLinks, indent =2 ))
+    # print("==== External links")
+    # print(json.dumps(externalLinks, indent =2 ))
     
-    
-    
-    return        
-        #
-        # for instType, instrPrmDict in seqList:
-        #
-        #     # if currIntNode == None:
-        #     #     orignId, originType = seqId, "SEQ"
-        #     # else:
-        #     #     orignId, originType = currIntNode, "NODE"
-        #
-        #     if instType == "INTERNAL_JUMP":
-        #             jumpsToProcess.append((orignId, originType, instrPrmDict["referenced_id"], "INT"))
-        #     elif instType == "EXTERNAL_JUMP":
-        #             jumpsToProcess.append((orignId, originType, instrPrmDict["referenced_id"], "EXT"))
-        #     elif instType =="CHOICE_DIALOG":
-        #         for cDict in instrPrmDict["choices"]:
-        #             jumpsToProcess.append((orignId, originType, cDict["sequence_ref"], "INT"))
-        #     elif instType == "HUB":
-        #             for cDict in instrPrmDict["choices"]:
-        #                 jumpsToProcess.append((internal_id, "NODE", cDict["sequence_ref"], "INT"))
-        #     elif instType == "IF":
-        #         jumpsToProcess.append((internal_id, "NODE", cDict["sequence_true"], "INT"))
-        #         jumpsToProcess.append((internal_id, "NODE", cDict["sequence_false"], "INT"))
-        #
-        #
-        # seqIntructions = compile_instructions(flattenedSequences[seqId], sequenceStartPos[seqId])
+    for cId in childIds:
+        if cId not in nodesReferenced:
+            logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
+            internal_id = nodeId+"_"+str(len(instructions))
+            instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "sequence_id": None}
+            instructions.append(instrDict)
                     
     
     resDict = { "id": nodeDefnDict["id"],
                 "type": nodeDefnDict["node_type"],
                 "description": nodeDefnDict["description"],
                 "image" : nodeDefnDict["image"],
-                "parent" : nodeIdToParentIdDict[nodeDefnDict["id"]] if nodeDefnDict["id"] in nodeIdToParentIdDict else None,
+                "parent" : parentId,
                 "internal_content_positions" : [],
-                "internal_content": [],
-                "internal_links": [],
-                "external_links": [] }
+                "internal_content": instructions,
+                "internal_links": internalLinks,
+                "external_links": externalLinks }
+    return resDict
 
-def compile_instructions(instructions, startPos):
-    retInstr, retPos = [], []
-    startXPos, startYPos = startPos
+def _get_hub_id(nodeDefnDict):
+    hubId = f"{nodeDefnDict['id']}_Hub"
+    def _hub_in_seq(seqList):
+        for inst in seqList:
+            instType = inst[0]
+            if instType == "HUB":
+                return True
+        return False
     
-    for inst in instructions:
-        pass
-    return [], []
+    hasHub = _hub_in_seq(nodeDefnDict["start_sequence"])
+    if hasHub:
+        return hubId
+    
+    for seqId in nodeDefnDict["referenced_sequences"]:
+        hasHub = _hub_in_seq(nodeDefnDict["referenced_sequences"][seqId])
+        if hasHub:
+            return hubId
+    return None
+    
 
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
     nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
     nodeIdToParentIdDict, nodeIdToChildIdsDict,  = build_node_hierarchy(ast["chapter_node"]["id"], nodeToDefnDict)
-    print(json.dumps(nodeIdToParentIdDict, indent=2))
-    print(json.dumps(nodeIdToChildIdsDict, indent=2))
+    # print(json.dumps(nodeIdToParentIdDict, indent=2))
+    # print(json.dumps(nodeIdToChildIdsDict, indent=2))
     
     nodeIdProcessingOrder = get_processing_order(ast["chapter_node"]["id"], nodeIdToChildIdsDict)
     
     
     resDict = {"nodes" : []}
     for nodeId in nodeIdProcessingOrder:
-        resDict["nodes"].append(process_node(nodeToDefnDict[nodeId], nodeIdToParentIdDict, nodeIdToChildIdsDict))
+        parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
+        childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
+        parentHub = None
+        if parentId:
+            parentHub = _get_hub_id(nodeToDefnDict[parentId])
+        resDict["nodes"].append(process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub))
 
+
+    with open("compiler_output.json", "w") as fh:
+        json.dump(resDict, fh, indent=2)
+        
     return resDict
     
     

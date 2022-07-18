@@ -81,16 +81,11 @@ class StatementTransformer(lark.Transformer):
     def game_event_listener_statement(self, items):
         return "GAME_EVENT_LISTENER", self._process_generic_statement_args(items)
     
+    def the_end_statement(self, items):
+        return "THE_END", self._process_generic_statement_args(items)
+    
+    
     def node_ref_statement(self, items):
-        # condition = None
-        # instruction = None
-        # for item in items:
-        #     if type(item) == lark.Tree:
-        #         if item.data == "condition":
-        #             condition = item.children[0].value
-        #         elif item.data == "exit_instruction":
-        #             instruction = item.children[0].value
-        # return "NODE_REF", items[0].value, condition, instruction
         return "NODE_REF", self._process_generic_statement_args(items)
     
     # def _process_generic_statement(self, name, *args, **kwargs):
