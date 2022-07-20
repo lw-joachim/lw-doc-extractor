@@ -37,18 +37,23 @@ def get_processing_order(currNodeId, nodeIdToChildIdsDict):
             ret.extend(get_processing_order(cNodeId, nodeIdToChildIdsDict))
     return ret
 
-# Automatically linking squences to a hub
 # rules for automatically creating a link to a hub are
-#  - if last item in sequence is not a jump, choice, hub, if or a node ref
-#  - then link to the current nodes hub
+#  - if last item in sequence is not a jump, choice, hub, if, the_end or a node ref
+#  - then if this node in the sequence it is embeded in is not last in sequence create a return
+#  - if not then link to the current nodes hub
 #  - if that doesnt exist then link to the hub in the parent
 #  - if that doesnt exist raise an error
-def auto_link_hub(sequenceDict, currentHub, parentHub):
+def auto_link_hub(nodeId, sequenceDict, currentHub, parentHub, allNodesWithOutgoingLinks):
     for seqId in sequenceDict:
+        if len(sequenceDict[seqId]) == 0:
+            raise RuntimeError(f"Cannot fix sequence {seqId} as it is empty.")
         if sequenceDict[seqId][-1][0] == "THE_END":
             continue
-        if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP"]:
-            if currentHub != None:
+        if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END"]:
+            if nodeId in allNodesWithOutgoingLinks:
+                sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : nodeId}))
+                logger.debug(f"For sequence {seqId} adding internal return jump to {nodeId}")
+            elif currentHub != None:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : currentHub}))
                 logger.debug(f"For sequence {seqId} adding internal jump to {currentHub}")
             elif parentHub != None:
@@ -157,7 +162,7 @@ def _collapse_links(sequences):
     return retDict
 
 
-def process_node(nodeDefnDict, parentId, childIds, parentHub):
+def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithOutlinksTracker):
     nodeId = nodeDefnDict["id"]
     
     # array to keep track of nodes that have been referenced to determine which have not
@@ -174,11 +179,14 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
     flattenedSequences , sequenceStartPos = flatten_sequences(sequenceIds, nodeDefnDict)
     #print(json.dumps(flattenedSequences, indent=2))
     
+    embedSequenceWithOutlinksTracker.update(_get_all_nodes_with_outgoing_links_in_sequences(flattenedSequences.values()))
+    
     # inplace
-    auto_link_hub(flattenedSequences, _get_hub_id(nodeDefnDict), parentHub)
+    auto_link_hub(nodeId, flattenedSequences, _get_hub_id(nodeDefnDict), parentHub, embedSequenceWithOutlinksTracker)
     
     
     instructions = []
+    instructionPos = []
     internalLinks = []
     externalLinks = []
     
@@ -193,10 +201,18 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
     jumpsToProcess = []
     anonChoicesThatCanBeLinkedTo = []
     
+    seqPosX = 0
+    seqPosY = 0
+    intrPosCnt = 0
+    
     for seqId, seqList in flattenedSequences.items():
-        
         if seqId in collapsedSequenceIdToTarget:
             continue
+        
+        if seqId in sequenceIds:
+            intrPosCnt = 0
+            seqPosX = 0
+        seqPosY += 1
         
         sequenceId = seqId
         shouldBeDone = False
@@ -216,6 +232,9 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
                     choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"],  "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
                     instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "sequence_id": None}
                     instructions.append(instrDict)
+                    instructionPos.append((seqPosX+intrPosCnt, seqPosY))
+                    seqPosY += 1
+                    intrPosCnt += 1
                     if currIntNode:
                         internalLinks.append((currIntNode, internal_id))
                     else:
@@ -231,12 +250,14 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
                 elif instType == "HUB":
                     for c in instrPrmDict["choices"]:
                         jumpsToProcess.append((internal_id, c["sequence_ref"]))
-                    instrPrms = {}
+                    instrPrms = {"hub_name" : f"{nodeId}_HUB"}
                 elif instType == "NODE_REF":
                     nodesReferenced.append(instrPrmDict["id"])
                 
                 instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "sequence_id": sequenceId}
                 instructions.append(instrDict)
+                instructionPos.append((seqPosX+intrPosCnt, seqPosY))
+                intrPosCnt += 1
                 if currIntNode:
                     internalLinks.append((currIntNode, internal_id))
                 if sequenceId:
@@ -274,7 +295,10 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
             else:
                 externalLinks.append((srcInternId, target))
         else:
-            internalLinks.append((srcInternId, seqenceToNodeIntId[targetSequennce]))
+            if targetSequennce == nodeId:
+                internalLinks.append((srcInternId, nodeId))
+            else:
+                internalLinks.append((srcInternId, seqenceToNodeIntId[targetSequennce]))
             
         
     # print("==== Internal links")
@@ -282,20 +306,31 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub):
     # print("==== External links")
     # print(json.dumps(externalLinks, indent =2 ))
     
-    for cId in childIds:
+    for i, cId in enumerate(childIds):
         if cId not in nodesReferenced:
             logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
             internal_id = nodeId+"_"+str(len(instructions))
             instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "sequence_id": None}
             instructions.append(instrDict)
+            instructionPos.append((0, seqPosY+1+i))
+            seqPosY += 1
+            
+            
+    
+    if nodeId in embedSequenceWithOutlinksTracker:
+        for srcL, tarL in externalLinks:
+            if tarL != nodeId:
+                raise RuntimeError(f"Node {nodeId} is an embeded node but has an external reference to {tarL}")
                     
+    if len(instructions) != len(instructionPos):
+        raise RuntimeError("Uneven instruction pos arr len")
     
     resDict = { "id": nodeDefnDict["id"],
                 "type": nodeDefnDict["node_type"],
                 "description": nodeDefnDict["description"],
                 "image" : nodeDefnDict["image"],
                 "parent" : parentId,
-                "internal_content_positions" : [],
+                "internal_content_positions" : instructionPos,
                 "internal_content": instructions,
                 "internal_links": internalLinks,
                 "external_links": externalLinks }
@@ -320,6 +355,22 @@ def _get_hub_id(nodeDefnDict):
             return hubId
     return None
     
+def _get_all_nodes_with_outgoing_links_in_sequences(seqList):
+    # seqList = []
+    #
+    # for node in nodeToDefnDict.values():
+    #     seqList.append(node["start_sequence"])
+    #     seqList.extend(node["referenced_sequences"].values())
+    #
+    # print(len(seqList))
+    
+    ret = []
+    for seq in seqList:
+        seqLen = len(seq)
+        for i, seqInsr in enumerate(seq):
+            if seqInsr[0] == "NODE_REF" and i < seqLen-1:
+                ret.append(seqInsr[1]["id"])
+    return ret
 
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
@@ -330,7 +381,14 @@ def compile_story(ast):
     
     nodeIdProcessingOrder = get_processing_order(ast["chapter_node"]["id"], nodeIdToChildIdsDict)
     
+    # woLinksList = _get_all_nodes_with_outgoing_links_in_sequences(nodeToDefnDict)
+    # allNodesWithOutgoingLinks = set(woLinksList)
+
+    #
+
+    embedSequenceWithOutlinksTracker = set()
     
+
     resDict = {"nodes" : []}
     for nodeId in nodeIdProcessingOrder:
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
@@ -338,11 +396,7 @@ def compile_story(ast):
         parentHub = None
         if parentId:
             parentHub = _get_hub_id(nodeToDefnDict[parentId])
-        resDict["nodes"].append(process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub))
-
-
-    with open("compiler_output.json", "w") as fh:
-        json.dump(resDict, fh, indent=2)
+        resDict["nodes"].append(process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker))
         
     return resDict
     

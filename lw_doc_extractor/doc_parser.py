@@ -200,10 +200,14 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
     from lw_doc_extractor import lexer, story_compiler
     ast = lexer.parse(lines)
     
-    with open("lexer_output.json", "w") as fh:
+    
+    with open(os.path.join(os.path.dirname(outputJsonFilePath),"lexer_output.json"), "w") as fh:
         json.dump(ast, fh, indent=2)
     
     resultJson = story_compiler.compile_story(ast)
+    
+    with open(outputJsonFilePath, "w") as fh:
+        json.dump(resultJson, fh, indent=2)
     
 
 def _old_parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):

@@ -41,16 +41,24 @@ _FILE_LOC = os.path.abspath(os.path.dirname(__file__))
 
 class StatementTransformer(lark.Transformer):
 
-    def _process_generic_statement_args(self, items):
+    def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False):
         resp = {}
+        if hasDescription:
+            resp["description"] = None
+        if includesCondInst:
+            resp["condition"] = None
+            resp["instruction"] = None
         for item in items:
             if type(item) == lark.Token:
-                resp[item.type.lower()] = item.value
+                if item.type == "STATEMENT_DESCRIPTION":
+                    resp["description"] = item.value.strip()
+                else:
+                    resp[item.type.lower()] = item.value.strip()
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    resp['condition'] = item.children[0].value
+                    resp['condition'] = item.children[0].value.strip()
                 elif item.data == "exit_instruction":
-                    resp['instruction'] = item.children[0].value
+                    resp['instruction'] = item.children[0].value.strip()
         return resp
         
     def simple_dialog_statement(self, items):
@@ -70,19 +78,22 @@ class StatementTransformer(lark.Transformer):
         return "END_QUEST", self._process_generic_statement_args(items)
     
     def load_stage_statement(self, items):
-        return "LOAD_STAGE", self._process_generic_statement_args(items)
+        return "LOAD_STAGE", self._process_generic_statement_args(items, hasDescription=True)
     
     def sync_stage_event_statement(self, items):
-        return "SYNC_STAGE_EVENT", self._process_generic_statement_args(items)
+        return "SYNC_STAGE_EVENT", self._process_generic_statement_args(items, hasDescription=True)
     
     def stage_event_statement(self, items):
-        return "STAGE_EVENT", self._process_generic_statement_args(items)
+        return "STAGE_EVENT", self._process_generic_statement_args(items, hasDescription=True)
+    
+    def set_statement(self, items):
+        return "SET", self._process_generic_statement_args(items) 
     
     def game_event_listener_statement(self, items):
-        return "GAME_EVENT_LISTENER", self._process_generic_statement_args(items)
+        return "GAME_EVENT_LISTENER", self._process_generic_statement_args(items, hasDescription=True)
     
     def the_end_statement(self, items):
-        return "THE_END", self._process_generic_statement_args(items)
+        return "THE_END", self._process_generic_statement_args(items, hasDescription=True)
     
     
     def node_ref_statement(self, items):
@@ -114,16 +125,16 @@ class StatementTransformer(lark.Transformer):
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "STATEMENT_DESCRIPTION":
-                    returnDict["choice_description"] = item.value
+                    returnDict["choice_description"] = item.value.strip()
                 elif item.type == "EVENT_ID":
-                    returnDict["event_id"] = item.value
+                    returnDict["event_id"] = item.value.strip()
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    returnDict["condition"] = item.children[0].value
+                    returnDict["condition"] = item.children[0].value.strip()
                 elif item.data == "exit_instruction":
-                    returnDict["exit_instruction"] = item.children[0].value
+                    returnDict["exit_instruction"] = item.children[0].value.strip()
                 elif item.data == "inner_sequence":
                     returnDict["sequence"] = item.children
                 else:
@@ -140,17 +151,17 @@ class StatementTransformer(lark.Transformer):
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
-                    returnDict["menu_text"] = item.value
+                    returnDict["menu_text"] = item.value.strip()
                 elif item.type == "SPOKEN_TEXT":
-                    returnDict["spoken_text"] = item.value
+                    returnDict["spoken_text"] = item.value.strip()
                 else:
                     #logger.warning("Unexpected token in ")
                     raise RuntimeError(f"Unexpected token {item.type} in player_choice")
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    returnDict["condition"] = item.children[0].value
+                    returnDict["condition"] = item.children[0].value.strip()
                 elif item.data == "exit_instruction":
-                    returnDict["exit_instruction"] = item.children[0].value
+                    returnDict["exit_instruction"] = item.children[0].value.strip()
                 elif item.data == "inner_sequence":
                     returnDict["sequence"] = item.children
                 else:
@@ -167,10 +178,13 @@ class StatementTransformer(lark.Transformer):
         return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[1]}
     
     def sequence(self, items):
-        return items
+        filteredItems = [item for item in items if type(item) == lark.Tree or  type(item) == lark.Token]
+        if len(filteredItems) > 0:
+            logger.warning(f"In sequence filtered the following: {filteredItems}")
+        return [item for item in items if type(item) != lark.Tree or  type(item) != lark.Token]
     
     def if_block(self, items):
-        ret =  "IF", {"eval_condition" : items[0].value, "sequence_true":items[1].children, "sequence_false": items[2].children}
+        ret =  "IF", {"eval_condition" : items[0].value.strip(), "sequence_true":items[1].children, "sequence_false": items[2].children}
         return ret
 
 class DocTransformer(lark.Transformer):
@@ -186,7 +200,7 @@ class DocTransformer(lark.Transformer):
     def _p_node_properties(self, node_prop, nodeDict):
         for item in node_prop.children:
             if item.data == "node_description":
-                nodeDict["description"] = item.children[0].value
+                nodeDict["description"] = item.children[0].value.strip()
             if item.data == "image":
                 nodeDict["image"] =item.children[0].value
 
@@ -197,16 +211,16 @@ class DocTransformer(lark.Transformer):
             # print(type(item))
             if type(item) == lark.Token:
                 if item.type == "ID":
-                    nodeDict["id"] = item.value
+                    nodeDict["id"] = item.value.strip()
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in node_definition")
             elif type(item) == lark.Tree:
                 if item.data == "node_type":
-                    nodeDict["node_type"] = item.children[0].value
+                    nodeDict["node_type"] = item.children[0].value.strip()
                 elif item.data == "start_sequence":
                     nodeDict["start_sequence"] = item.children[0]
                 elif item.data == "referenced_sequence":
-                    nodeDict["referenced_sequences"][item.children[0].value] = item.children[1]
+                    nodeDict["referenced_sequences"][item.children[0].value.strip()] = item.children[1]
                 elif item.data == "node_properties":
                     self._p_node_properties(item, nodeDict)
                 else:
@@ -222,28 +236,7 @@ def parse(lines):
     with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
         fileCont = f.read()
     
-    print("======================")
     tree = lark.Lark(fileCont, start='start', parser='earley', debug=True).parse(cont)
-    
-    #print_rec(tree)
-    
-    # for c in tree.children:
-    #     if type(c) == lark.Token:
-    #         pass
-    #     else:
-    #         if c.data == "node_definition":
-    #             for cc in c.children:
-    #                 if type(cc) == lark.Token and cc.type == "ID" and cc.value =="A-Market_Zealot-Dialog":
-    #                     print_rec(c)
-    #
-    #                     print("================")
-    #                     n = StatementTransformer().transform(c)
-    #                     #n = SequenceTransformer().transform(n)
-    #                     n = NodeDefinitionTransformer().transform(n)
-    #                     print("================")
-    #
-    #                     print_rec(n)
-    #                     return
     
     n = StatementTransformer().transform(tree)
     n = DocTransformer().transform(n)
