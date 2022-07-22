@@ -90,22 +90,31 @@ class ArticyApiWrapper:
         logger.debug("Creating dialog {} with template {}".format(dispName, template))
         return self.session.CreateDialogue( parentObj, dispName, template)
         
-    def create_dialog_fragment(self, parentObj, text, template=None, speaker=None):
+    def create_dialog_fragment(self, parentObj, text, template=None, speaker=None, menu_text=None, stage_directions=None):
         diagFrag = self.session.CreateDialogueFragment( parentObj, text, template)
         if speaker:
             if speaker.upper() not in self.int_char_dict:
                 logger.warning("Articy object for speaker {} not found".format(speaker))
             else:
                 diagFrag["Speaker"] = self.int_char_dict[speaker.upper()]
+        if menu_text:
+            diagFrag["MenuText"] = menu_text
+            
+        if stage_directions:
+            diagFrag["StageDirections"] = stage_directions
         return diagFrag
     
     def create_instruction(self, parentObj, instructionText, template=None):
         logger.debug("Creating instruction {} with template {}".format(instructionText, template))
-        return self.session.CreateInstruction( parentObj, instructionText, template)
+        intr = self.session.CreateInstruction( parentObj, instructionText, template)
+        intr["Expression"] = instructionText
+        return intr
     
     def create_condition(self, parentObj, conditionText, template=None):
         logger.debug("Creating condition {} with template {}".format(conditionText, template))
-        return self.session.CreateCondition(parentObj, conditionText, template)
+        cond = self.session.CreateCondition(parentObj, conditionText, template)
+        cond["Expression"] = conditionText
+        return cond
     
     def create_hub(self, parentObj, dispName, template=None):
         logger.debug("Creating hub {} with template {}".format(dispName, template))
@@ -148,7 +157,7 @@ class ArticyApiWrapper:
         retObj = self.session.ConnectPins(srcOutputPins[0], outPins[parentObjOutputPinIndex])
         return retObj
     
-    def SetPinExpressions(self, nodeObj, condition=None, instruction=None):
+    def set_pin_expressions(self, nodeObj, condition=None, instruction=None):
         iPins = nodeObj.GetInputPins()
         oPins = nodeObj.GetOutputPins()
         
@@ -156,12 +165,12 @@ class ArticyApiWrapper:
             if len(iPins) != 1:
                 raise RuntimeError("Cannot set pin condition. More than 1 pin")
             else:
-                iPins["Expression"] = condition.strip()
+                iPins[0]["Expression"] = condition.strip()
         if instruction:
             if len(oPins) != 1:
                 raise RuntimeError("Cannot set pin instruction. More than 1 pin")
             else:
-                oPins["Expression"] = condition.strip()
+                oPins[0]["Expression"] = instruction.strip()
     
     def _get_char_int(self, entitiesFolder):
         res = {}
@@ -240,11 +249,15 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
                 refId = "{}:{}".format(parentNodeId, "_".join(instrPrm["description"].split(" ")))
         articyObj = articyApi.create_flow_fragment(flowFragmentObj, refId, template=get_tmpl_nm(instrType))
         articyObj["Text"] =  instrPrm["description"] if "description" in instrPrm and instrPrm["description"] else ""
-    
+        cond = instrPrm["condition"] if "condition" in instrPrm else None
+        exitInstr = instrPrm["exit_instruction"] if "exit_instruction" in instrPrm else None
+        articyApi.set_pin_expressions(articyObj, cond, exitInstr)
     elif instrType == "DIALOG_LINE":
-        articyObj = articyApi.create_dialog_fragment(flowFragmentObj, instrPrm["spoken_text"], template=None, speaker=instrPrm["entity_name"])
+        articyObj = articyApi.create_dialog_fragment(flowFragmentObj, instrPrm["spoken_text"], template=None, speaker=instrPrm["entity_name"], menu_text=instrPrm["menu_text"], stage_directions=instrPrm["stage_directions"] )
+        articyApi.set_pin_expressions(articyObj, instrPrm["condition"], instrPrm["exit_instruction"])
     elif instrType == "SET":
         articyObj = articyApi.create_instruction(flowFragmentObj, instrPrm["instruction"])
+        
     elif instrType == "HUB":
         articyObj = articyApi.create_hub(flowFragmentObj, instrPrm["hub_name"])
     elif instrType == "IF":
@@ -257,11 +270,6 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
 def get_mapped_position(posX, posY):
     return posX*400, posY*400
 
-def create_internal_links(articyApi, flowFragmentObj, internalIdToLinkObjects, internal_links):
-    pass
-
-def create_external_links(articyApi, flowFragmentObj, nodeIdToInternalIdToLinkObjects, external_links):
-    pass
 
 def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict, nodeIdToNodeDefn):
     internalIdToArticyObj = {}
@@ -287,31 +295,86 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
             articyObj = create_instruction(articyApi, parentNodeId, flowFragmentObject, instr, posX, posY)
         internalIdToArticyObj[instr["internal_id"]] = articyObj
         articyObj.SetFlowPosition(*get_mapped_position(posX, posY))
-        if instr["sequence_id"]:
-            articyObj.SetExternalId(instr["sequence_id"])
+        if instr["external_id"]:
+            articyObj.SetExternalId(instr["external_id"])
             
     for int_link in nodeDict["internal_links"]:
-        print(int_link)
-        linkSrc,  linkTarget = int_link
+        linkSrc, outPin, linkTarget = int_link
         if linkSrc == linkTarget:
             raise RuntimeError("Can create link {}".format(int_link))
         if linkSrc == parentNodeId:
             articyApi.create_internal_connection(flowFragmentObject, internalIdToArticyObj[linkTarget])
         elif linkTarget == parentNodeId:
-            articyApi.create_internal_return_connection(internalIdToArticyObj[linkSrc], flowFragmentObject)
+            articyApi.create_internal_return_connection(internalIdToArticyObj[linkSrc], flowFragmentObject, parentObjOutputPinIndex=outPin)
         else:
-            articyApi.create_connection(internalIdToArticyObj[linkSrc], internalIdToArticyObj[linkTarget])
+            articyApi.create_connection(internalIdToArticyObj[linkSrc], internalIdToArticyObj[linkTarget], outPin)
     return internalIdToArticyObj, nodeIdToObject
+
+def get_node_hierarchy(nodeIdToParentNodeId, childNode, parentNode=None):
+    if childNode not in nodeIdToParentNodeId:
+        if parentNode != None:
+            raise RuntimeError("Could not reach parent node of child node {}".format(childNode))
+        return [childNode]
+    if parentNode and parentNode == childNode:
+        return [childNode]
+    return [childNode] + get_node_hierarchy(nodeIdToParentNodeId, nodeIdToParentNodeId[childNode], parentNode)
+        
+
+def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject):
+    
+    internalIdToNode = {}
+    targetIdToNode = {}
+    
+    nodeIdToParentNodeId = {}
+    for node in nodesList:
+        nodeIdToNodeDefn[node["id"]] = node
+        nodeIdToParentNodeId[node["id"]] = node["parent"]
+    
+    for nodeId in nodeIdToInternalIdToArticyObj:
+        for intId in nodeIdToInternalIdToArticyObj[nodeId]:
+            internalIdToNode[intId] = nodeId
+    
+    for nodeId in nodeIdToTargetToInternalId:
+        for tarId in nodeIdToTargetToInternalId[nodeId]:
+            targetIdToNode[tarId] = nodeId
+    
+    
+    nodeIdToTargetToPinIdx = {}
+    
+    for node in nodesList:
+        nodeId = node["id"]
+        #create_external_links(articyApi, nodeIdToTargetToInternalId, nodeIdToInternalIdToLinkObjects, external_links):
+        targetToPinIdxDict = {}
+        for _, _, target in node["external_links"]:
+            if len(targetToPinIdxDict) > 0:
+                globalNodeIdToObject[node["id"]].AddOutputPin()
+            targetToPinIdxDict[target] = len(targetToPinIdxDict)
+        nodeIdToTargetToPinIdx[nodeId] = targetToPinIdxDict
+    
+    for node in nodesList:
+        nodeId = node["id"]
+        #create_external_links(articyApi, nodeIdToTargetToInternalId, nodeIdToInternalIdToLinkObjects, external_links):
+            
+        for srcInternalId, srcPin, target in node["external_links"]:
+            srcNodeId = internalIdToNode[srcInternalId]
+            targetNode = targetIdToNode[target]
+            if srcNodeId == targetNode:
+                raise RuntimeError("Source {} and target {} are the same.".format(srcInternalId, target))
+            
+            nodeHierarchy = get_node_hierarchy(nodeIdToParentNodeId, srcNodeId, targetNode)
+            for node in nodeHierarchy:
+                
+            
+            
 
 
 def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
     nodeIdToInternalIdToArticyObj = {}
+    nodeIdToTargetToInternalId = {}
     globalNodeIdToObject = {}
     
     nodeIdToNodeDefn = {}
-    for node in nodesList:
-        nodeIdToNodeDefn[node["id"]] = node
-    
+
     for node in nodesList:
         
         nodeId = node["id"]
@@ -324,16 +387,17 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
         internalIdToArticyObj, nodeIdToObject = create_node_internals(articyApi, nodeId, articyObj, node, nodeIdToNodeDefn)
         nodeIdToInternalIdToArticyObj[nodeId] = internalIdToArticyObj
         
+        
         ddList = [n for n in nodeIdToObject if n in globalNodeIdToObject]
         if len(ddList):
             raise RuntimeError("Following node(s) was defined twice: {}".format(ddList))
         else:
             globalNodeIdToObject.update(nodeIdToObject)
             
+        nodeIdToTargetToInternalId[nodeId] = node["target_to_internal_id"]
     
-        
-            
     
+    create_external_links(articyApi, nodesList, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject)
     
 
 def main():

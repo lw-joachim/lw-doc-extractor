@@ -41,13 +41,14 @@ _FILE_LOC = os.path.abspath(os.path.dirname(__file__))
 
 class StatementTransformer(lark.Transformer):
 
-    def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False):
+    def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False, defVals={}):
         resp = {}
+        resp.update(defVals)
         if hasDescription:
             resp["description"] = None
         if includesCondInst:
             resp["condition"] = None
-            resp["instruction"] = None
+            resp["exit_instruction"] = None
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "STATEMENT_DESCRIPTION":
@@ -58,12 +59,12 @@ class StatementTransformer(lark.Transformer):
                 if item.data == "condition":
                     resp['condition'] = item.children[0].value.strip()
                 elif item.data == "exit_instruction":
-                    resp['instruction'] = item.children[0].value.strip()
+                    resp['exit_instruction'] = item.children[0].value.strip()
         return resp
         
     def simple_dialog_statement(self, items):
         #return "DIALOG_LINE", items[0].value, items[1].value
-        return "DIALOG_LINE" , self._process_generic_statement_args(items)
+        return "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
     
     def internal_jump_statement(self, items):
         return "INTERNAL_JUMP", self._process_generic_statement_args(items)
@@ -147,7 +148,7 @@ class StatementTransformer(lark.Transformer):
         return "HUB", items
     
     def player_choice(self, items):
-        returnDict = {"menu_text" : None, "spoken_text" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
+        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
