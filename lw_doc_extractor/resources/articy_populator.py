@@ -80,6 +80,7 @@ class ArticyApiWrapper:
     def __init__(self, session):
         self.session = session
         self.int_char_dict = {n.upper(): obj for n, obj in self.get_character_name_to_obj_dict().items()}
+        self.linksAlreadyCreatedSet = set()
         logger.info("Entities: {}".format(self.int_char_dict))
 
     def create_flow_fragment(self, parentObj, dispName, template=None):
@@ -128,9 +129,18 @@ class ArticyApiWrapper:
             raise RuntimeError("srcOuputPins is None or empty")
         if not targetInpPins:
             raise RuntimeError("targetInpPins is None or empty")
-        #logger.debug("Connecting pins of {} and {}".format(srcObj.GetTechnicalName(), targetObj.GetTechnicalName()))
-        retObj = self.session.ConnectPins(srcOuputPins[sourceOutputPinIndex], targetInpPins[0])
         
+        linkId = (srcObj.GetTechnicalName(), targetObj.GetTechnicalName(), sourceOutputPinIndex, 0 )
+        if linkId in self.linksAlreadyCreatedSet:
+            print("~~~~~~~~~~~~~~~~~~~~~~~~"+str(linkId))
+            return
+        try:
+            retObj = self.session.ConnectPins(srcOuputPins[sourceOutputPinIndex], targetInpPins[0])
+        except:
+            logger.warning("Failed connecting pins of {} and {}".format(srcObj.GetTechnicalName(), targetObj.GetTechnicalName()))
+            raise
+        
+        self.linksAlreadyCreatedSet.add(linkId)
         return retObj
         
     def create_internal_connection(self, srcParentObj, targetObj):
@@ -141,11 +151,17 @@ class ArticyApiWrapper:
             raise RuntimeError("srcInputPins is None or empty")
         if not targetInpPins:
             raise RuntimeError("targetInpPins is None or empty")
+        
+        linkId = (srcParentObj.GetTechnicalName(), targetObj.GetTechnicalName(), 0, 0 )
+        if linkId in self.linksAlreadyCreatedSet:
+            logger.debug("Internal pins of {} and {} already connected".format(srcParentObj.GetTechnicalName(), targetObj.GetTechnicalName()))
+            return
         logger.debug("Connecting internal pins of {} and {}".format(srcParentObj.GetTechnicalName(), targetObj.GetTechnicalName()))
         retObj = self.session.ConnectPins(srcInputPins[0], targetInpPins[0])
+        self.linksAlreadyCreatedSet.add(linkId)
         return retObj
     
-    def create_internal_return_connection(self, srcObj, targetParentObj, parentObjOutputPinIndex=0):
+    def create_internal_return_connection(self, srcObj, targetParentObj, sourceObjOutputPinIdx=0, parentObjOutputPinIdx=0):
         srcOutputPins = srcObj.GetOutputPins()
         outPins = targetParentObj.GetOutputPins()
         
@@ -153,8 +169,14 @@ class ArticyApiWrapper:
             raise RuntimeError("srcOutputPins is None or empty")
         if not outPins:
             raise RuntimeError("outPins is None or empty")
-        logger.debug("Connecting to return pin of {}:{} from {}".format(targetParentObj.GetTechnicalName(), parentObjOutputPinIndex, srcObj.GetTechnicalName()))
-        retObj = self.session.ConnectPins(srcOutputPins[0], outPins[parentObjOutputPinIndex])
+        
+        linkId = (srcObj.GetTechnicalName(), targetParentObj.GetTechnicalName(), sourceObjOutputPinIdx, parentObjOutputPinIdx )
+        if linkId in self.linksAlreadyCreatedSet:
+            logger.debug("Return pin from {}:{} to {}:{} already exists".format(srcObj.GetTechnicalName(), sourceObjOutputPinIdx, targetParentObj.GetTechnicalName(), parentObjOutputPinIdx))
+            return
+        logger.debug("Connecting to return pin from {}:{} to {}:{}".format(srcObj.GetTechnicalName(), sourceObjOutputPinIdx, targetParentObj.GetTechnicalName(), parentObjOutputPinIdx))
+        retObj = self.session.ConnectPins(srcOutputPins[sourceObjOutputPinIdx], outPins[parentObjOutputPinIdx])
+        self.linksAlreadyCreatedSet.add(linkId)
         return retObj
     
     def set_pin_expressions(self, nodeObj, condition=None, instruction=None):
@@ -305,7 +327,7 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
         if linkSrc == parentNodeId:
             articyApi.create_internal_connection(flowFragmentObject, internalIdToArticyObj[linkTarget])
         elif linkTarget == parentNodeId:
-            articyApi.create_internal_return_connection(internalIdToArticyObj[linkSrc], flowFragmentObject, parentObjOutputPinIndex=outPin)
+            articyApi.create_internal_return_connection(internalIdToArticyObj[linkSrc], flowFragmentObject, parentObjOutputPinIdx=outPin)
         else:
             articyApi.create_connection(internalIdToArticyObj[linkSrc], internalIdToArticyObj[linkTarget], outPin)
     return internalIdToArticyObj, nodeIdToObject
@@ -327,7 +349,6 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
     
     nodeIdToParentNodeId = {}
     for node in nodesList:
-        nodeIdToNodeDefn[node["id"]] = node
         nodeIdToParentNodeId[node["id"]] = node["parent"]
     
     for nodeId in nodeIdToInternalIdToArticyObj:
@@ -339,6 +360,10 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
             targetIdToNode[tarId] = nodeId
     
     
+    print("============")
+    #print(internalIdToNode)
+    print(json.dumps(targetIdToNode, indent=2))
+    
     nodeIdToTargetToPinIdx = {}
     
     for node in nodesList:
@@ -346,26 +371,65 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
         #create_external_links(articyApi, nodeIdToTargetToInternalId, nodeIdToInternalIdToLinkObjects, external_links):
         targetToPinIdxDict = {}
         for _, _, target in node["external_links"]:
+            if target in targetToPinIdxDict:
+                continue
             if len(targetToPinIdxDict) > 0:
                 globalNodeIdToObject[node["id"]].AddOutputPin()
             targetToPinIdxDict[target] = len(targetToPinIdxDict)
         nodeIdToTargetToPinIdx[nodeId] = targetToPinIdxDict
     
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(nodeIdToTargetToPinIdx)
+    
     for node in nodesList:
         nodeId = node["id"]
-        #create_external_links(articyApi, nodeIdToTargetToInternalId, nodeIdToInternalIdToLinkObjects, external_links):
             
         for srcInternalId, srcPin, target in node["external_links"]:
             srcNodeId = internalIdToNode[srcInternalId]
-            targetNode = targetIdToNode[target]
+            if target in nodeIdToNodeDefn:
+                targetNode = nodeIdToNodeDefn[target]["parent"]
+            else:
+                targetNode = targetIdToNode[target]
+                
             if srcNodeId == targetNode:
                 raise RuntimeError("Source {} and target {} are the same.".format(srcInternalId, target))
             
             nodeHierarchy = get_node_hierarchy(nodeIdToParentNodeId, srcNodeId, targetNode)
-            for node in nodeHierarchy:
+            
+            print("============")
+            print((srcInternalId, srcPin, target))
+            print(nodeHierarchy)
+            lastObj = None
+            lastPinIdx = None
+            for hierNode in nodeHierarchy:
+                if hierNode == srcNodeId:
+                    srcObj = nodeIdToInternalIdToArticyObj[srcNodeId][srcInternalId]
+                    lastObj = globalNodeIdToObject[hierNode]
+                    lastPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
+                    articyApi.create_internal_return_connection(srcObj, lastObj, srcPin, lastPinIdx)
+                elif hierNode == targetNode:
+                    if target in globalNodeIdToObject:
+                        targetObj = globalNodeIdToObject[target]
+                    else:
+                        targetInternalId = nodeIdToTargetToInternalId[targetNode][target]
+                        targetObj = nodeIdToInternalIdToArticyObj[targetNode][targetInternalId]
+                    articyApi.create_connection(lastObj, targetObj, lastPinIdx)
+                else:
+                    if target not in nodeIdToTargetToPinIdx[hierNode]:
+                        if len(nodeIdToTargetToPinIdx[hierNode]) > 0:
+                            globalNodeIdToObject[hierNode].AddOutputPin()
+                        nodeIdToTargetToPinIdx[hierNode][target] = len(nodeIdToTargetToPinIdx[hierNode])
+                    
+                    tarNodeObj = globalNodeIdToObject[hierNode]
+                    tarPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
+                    #logger.debug("Joining {} ({}:{}) with {} ({}:{})".format())
+                    articyApi.create_internal_return_connection(lastObj, tarNodeObj, lastPinIdx, tarPinIdx)
+                    lastObj = tarNodeObj
+                    lastPinIdx = tarPinIdx
                 
             
-            
+    print(json.dumps(list(articyApi.linksAlreadyCreatedSet)))
+    print(json.dumps(nodeIdToTargetToPinIdx, indent=2))
 
 
 def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
@@ -374,6 +438,9 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
     globalNodeIdToObject = {}
     
     nodeIdToNodeDefn = {}
+    
+    for node in nodesList:
+        nodeIdToNodeDefn[node["id"]] = node
 
     for node in nodesList:
         
@@ -396,8 +463,7 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
             
         nodeIdToTargetToInternalId[nodeId] = node["target_to_internal_id"]
     
-    
-    create_external_links(articyApi, nodesList, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject)
+    create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject)
     
 
 def main():

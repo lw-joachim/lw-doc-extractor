@@ -212,6 +212,7 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
     maxYPos = 0
     
     for seqId, seqList in flattenedSequences.items():
+        #if seqId in collapsedSequenceIdToTarget and not seqId.endswith("start_sequence"):
         if seqId in collapsedSequenceIdToTarget:
             continue
         
@@ -238,7 +239,6 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
             elif instType == "EXTERNAL_JUMP":
                 externalLinks.append((currIntNode, 0, instrPrmDict["referenced_id"]))
             elif instType =="CHOICE_DIALOG":
-                tFirst = True
                 for cDict in instrPrmDict["choices"]:
                     internal_id = nodeId+"_"+str(len(instructions))
                     choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : None, "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
@@ -246,14 +246,12 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                     instructions.append(instrDict)
                     instructionPos.append((seqPosX+intrPosCnt, seqPosY))
                     sequenceStartPos[cDict["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
-                    if not tFirst:
-                        seqPosY += 1
+                    seqPosY += 1
                     if currIntNode:
                         internalLinks.append((currIntNode, 0, internal_id))
                     else:
                         anonChoicesThatCanBeLinkedTo.append((seqId, internal_id))
                     jumpsToProcess.append((internal_id, 0, cDict["sequence_ref"]))
-                    tFirst = False
                 intrPosCnt += 1
             else:
                 intrPosAddX = 1
