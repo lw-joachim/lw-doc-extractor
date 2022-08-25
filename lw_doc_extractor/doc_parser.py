@@ -196,6 +196,12 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
         if not currrentLine:
             continue
         lines.append(currrentLine)
+        
+    with open(os.path.join(os.path.dirname(outputJsonFilePath),"doc_output_raw.txt"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    
+    with open(os.path.join(os.path.dirname(outputJsonFilePath),"doc_output.json"), "w") as fh:
+        json.dump(lines, fh, indent=2)
     
     from lw_doc_extractor import lexer, story_compiler
     ast = lexer.parse(lines)

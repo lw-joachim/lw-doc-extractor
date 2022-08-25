@@ -10,7 +10,7 @@ _node_body : node_properties? start_sequence referenced_sequence*
 node_properties:  node_description? image?
 node_description : _NEWLINE DESCRIPTION_TXT
 image : _NEWLINE "<" /IMAGE +[0-9]+/ ">"
-DESCRIPTION_TXT : /[^\*§\n\-].*/
+DESCRIPTION_TXT : /[^\*§\n\r\-].*/
 
 
 // sequence defn
@@ -57,20 +57,20 @@ hub_choice : _NEWLINE "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? condition? 
 condition : _NEWLINE "IF" REST_OF_LINE_TEXT
 exit_instruction : _NEWLINE "SET" REST_OF_LINE_TEXT
 
-STATEMENT_DESCRIPTION : /[^\n\{]+/
+STATEMENT_DESCRIPTION : /[^\n\r\{]+/
 EVENT_ID : /[A-Za-z0-9\-_:]+/
 
 MENU_TEXT : /[^\]]+/
 
-SPOKEN_TEXT: /[^\n]+/
-QUEST_ID : /[^\n]+/
-REST_OF_LINE_TEXT : /[^\n]+/
+SPOKEN_TEXT: /[^\n\r]+/
+QUEST_ID : /[^\n\r]+/
+REST_OF_LINE_TEXT : /[^\n\r]+/
 
 ENTITY_NAME : /[A-Z]+/ ENTITY_COUNTER?
 ENTITY_COUNTER : /\s*[0-9]+/
 
-INSTRUCTION : /[^\n].*/
-REST_OF_LINE : /[^\n].*/
+INSTRUCTION : /[^\n\r].*/
+REST_OF_LINE : /[^\n\r].*/
 
 
 // node type
@@ -80,7 +80,7 @@ NODE_TYPES : "D-DEF" | "D-EAV" | "C-CUT" | "C-SEG" | "Section"
     
 _node_marker : "*"
 
-line.9 : _NEWLINE /[^\*§\n].*/
+line.9 : _NEWLINE /[^\*§\n\r].*/
 
 COMMENT: /\([^\)]*\)/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
@@ -88,8 +88,7 @@ _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 ID : /[A-Za-z0-9\-_]+/
 REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
-%ignore "\n…"
-%ignore "\n..."
+%ignore /\r?\n.../
 
 %ignore /[\t \f]+/  // WS
 %ignore COMMENT

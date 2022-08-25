@@ -46,7 +46,8 @@ setup(
     install_requires=[
         # example library
         "k3logging==0.1",
-        "python-docx"
+        "python-docx==0.8.11",
+        "lark==1.1.2"
     ],
     entry_points={
         'console_scripts': [

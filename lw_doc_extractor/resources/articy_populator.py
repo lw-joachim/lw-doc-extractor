@@ -385,7 +385,12 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
         nodeId = node["id"]
             
         for srcInternalId, srcPin, target in node["external_links"]:
-            srcNodeId = internalIdToNode[srcInternalId]
+            srcIsNode = False
+            if srcInternalId in nodeIdToNodeDefn:
+                srcNodeId = srcInternalId
+                srcIsNode = True
+            else:
+                srcNodeId = internalIdToNode[srcInternalId]
             if target in nodeIdToNodeDefn:
                 targetNode = nodeIdToNodeDefn[target]["parent"]
             else:
@@ -403,10 +408,14 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
             lastPinIdx = None
             for hierNode in nodeHierarchy:
                 if hierNode == srcNodeId:
-                    srcObj = nodeIdToInternalIdToArticyObj[srcNodeId][srcInternalId]
-                    lastObj = globalNodeIdToObject[hierNode]
-                    lastPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
-                    articyApi.create_internal_return_connection(srcObj, lastObj, srcPin, lastPinIdx)
+                    if srcIsNode:
+                        lastObj = globalNodeIdToObject[hierNode]
+                        lastPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
+                    else:
+                        srcObj = nodeIdToInternalIdToArticyObj[srcNodeId][srcInternalId]
+                        lastObj = globalNodeIdToObject[hierNode]
+                        lastPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
+                        articyApi.create_internal_return_connection(srcObj, lastObj, srcPin, lastPinIdx)
                 elif hierNode == targetNode:
                     if target in globalNodeIdToObject:
                         targetObj = globalNodeIdToObject[target]

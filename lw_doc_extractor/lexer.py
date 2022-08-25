@@ -237,7 +237,7 @@ def parse(lines):
     with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
         fileCont = f.read()
     
-    tree = lark.Lark(fileCont, start='start', parser='earley', debug=True).parse(cont)
+    tree = lark.Lark(fileCont, start='start', parser='earley').parse(cont)
     
     n = StatementTransformer().transform(tree)
     n = DocTransformer().transform(n)

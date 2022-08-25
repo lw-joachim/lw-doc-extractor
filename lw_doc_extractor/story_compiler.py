@@ -212,8 +212,8 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
     maxYPos = 0
     
     for seqId, seqList in flattenedSequences.items():
-        #if seqId in collapsedSequenceIdToTarget and not seqId.endswith("start_sequence"):
-        if seqId in collapsedSequenceIdToTarget:
+        if seqId in collapsedSequenceIdToTarget and not seqId.endswith("start_sequence"):
+        #if seqId in collapsedSequenceIdToTarget:
             continue
         
         if seqId in sequenceIds:

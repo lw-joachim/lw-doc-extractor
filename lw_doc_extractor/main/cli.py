@@ -6,6 +6,7 @@ import argparse
 import os
 import logging
 import k3logging
+import sys
 
 from lw_doc_extractor import __version__, primitive_doc_parser, doc_parser
 import errno
