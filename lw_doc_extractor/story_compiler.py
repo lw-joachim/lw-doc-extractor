@@ -410,6 +410,8 @@ def compile_story(ast):
     
     nodeIdProcessingOrder = get_processing_order(ast["chapter_node"]["id"], nodeIdToChildIdsDict)
     
+    logger.debug(f"Nodes and their order of processing: {nodeIdProcessingOrder}")
+    
     # woLinksList = _get_all_nodes_with_outgoing_links_in_sequences(nodeToDefnDict)
     # allNodesWithOutgoingLinks = set(woLinksList)
 
@@ -420,12 +422,15 @@ def compile_story(ast):
 
     resDict = {"nodes" : []}
     for nodeId in nodeIdProcessingOrder:
+        logger.debug(f"PROCESSING Node {nodeId}")
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
         childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
+        logger.debug(f"Parent: {parentId}, children: {childIds}")
         parentHub = None
         if parentId:
             parentHub = _get_hub_id(nodeToDefnDict[parentId])
-        resDict["nodes"].append(process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker))
+        nodeDict = process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker)
+        resDict["nodes"].append(nodeDict)
         
     return resDict
     

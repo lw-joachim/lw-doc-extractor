@@ -76,7 +76,7 @@ REST_OF_LINE : /[^\n\r].*/
 // node type
 node_type : "["? NODE_TYPES "]"?
 
-NODE_TYPES : "D-DEF" | "D-EAV" | "C-CUT" | "C-SEG" | "Section"
+NODE_TYPES : "D-NPC" | "D-DEF" | "D-EAV" | "C-CUT" | "C-SEG" | "Section"
     
 _node_marker : "*"
 

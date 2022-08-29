@@ -242,13 +242,11 @@ def parse(lines):
     n = StatementTransformer().transform(tree)
     n = DocTransformer().transform(n)
     
-    print("=======\nChapter node:")
-    print_node("", n["chapter_node"])
-    print("=======\nNodes")
-    for restNode in n["nodes"]:
-        print_node("", restNode)
-        
-    logger.info("Lexing complete")
+    # print("=======\nChapter node:")
+    # print_node("", n["chapter_node"])
+    # print("=======\nNodes")
+    # for restNode in n["nodes"]:
+    #     print_node("", restNode)
 
     return n
     

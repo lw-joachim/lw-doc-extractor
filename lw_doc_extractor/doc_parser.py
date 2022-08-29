@@ -196,24 +196,32 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
         if not currrentLine:
             continue
         lines.append(currrentLine)
-        
-    with open(os.path.join(os.path.dirname(outputJsonFilePath),"doc_output_raw.txt"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
     
-    with open(os.path.join(os.path.dirname(outputJsonFilePath),"doc_output.json"), "w") as fh:
+    linesOutputLocaiton = os.path.join(os.path.dirname(outputJsonFilePath),"doc_output.json")
+    with open(linesOutputLocaiton, "w") as fh:
         json.dump(lines, fh, indent=2)
     
+    logger.info(f"Extracted {len(lines)} lines. A copy was written to {linesOutputLocaiton}")
     from lw_doc_extractor import lexer, story_compiler
     ast = lexer.parse(lines)
     
+    logger.info(f"Lexing complete")
     
-    with open(os.path.join(os.path.dirname(outputJsonFilePath),"lexer_output.json"), "w") as fh:
+    lexOutPath = os.path.join(os.path.dirname(outputJsonFilePath),"lexer_output.json")
+    
+    with open(lexOutPath, "w") as fh:
         json.dump(ast, fh, indent=2)
+    
+    logger.info(f"Parsed and structured (lexing) output written to {lexOutPath}")
     
     resultJson = story_compiler.compile_story(ast)
     
+    logger.info(f"Compilation complete")
+    
     with open(outputJsonFilePath, "w") as fh:
         json.dump(resultJson, fh, indent=2)
+        
+    logger.info(f"Final (compiled) output written to {outputJsonFilePath}")
     
 
 def _old_parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
