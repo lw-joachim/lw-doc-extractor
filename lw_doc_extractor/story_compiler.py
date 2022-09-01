@@ -83,6 +83,7 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
             seqToProcess = nodeDefnDict["referenced_sequences"][seqId]
         if not seqId.startswith(nodeId):
             raise RuntimeError(f"Sequence {seqId} does not start with prefix of node {nodeId}")
+        logger.debug(f"Flattenning sequence {seqId}")
         flatSequences[seqId] = []
         seqPos[seqId] = (len(seqPos), 0)
         for i, inst in enumerate(seqToProcess):
@@ -91,51 +92,55 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
             if instType not in complexStatements:
                 flatSequences[seqId].append(inst)
             else:
-                if complexStatementUsed:
-                    raise RuntimeError(f"There con only be one complex statement within a sequence. Offending statement: {inst}")
-                if instType == "HUB":
-                    if hubFound:
-                        raise RuntimeError("More than one hub found in node {nodeDefnDict['id']}")
-                    hubFound = True
-                    if nodeDefnDict["node_type"] not in ["Chapter", "Section"]:
-                        raise RuntimeError("Node {nodeDefnDict['id']} defines a hub but is not of type Chapter or Section")
+                try:
+                    if complexStatementUsed:
+                        raise RuntimeError(f"There con only be one complex statement within a sequence. Offending statement: {inst}")
+                    if instType == "HUB":
+                        if hubFound:
+                            raise RuntimeError("More than one hub found in node {nodeDefnDict['id']}")
+                        hubFound = True
+                        if nodeDefnDict["node_type"] not in ["Chapter", "Section"]:
+                            raise RuntimeError("Node {nodeDefnDict['id']} defines a hub but is not of type Chapter or Section")
+                        
+                        hubSeqId = f"{nodeDefnDict['id']}_Hub"
+                        
+                        flatSequences[seqId].append(("INTERNAL_JUMP", {"referenced_id" :hubSeqId}))
+                        
+                        flatSequences[hubSeqId] = [["HUB", {"choices" : [], "original_sequence" : seqId if i == 0 else None}]]
+                        seqPos[hubSeqId] = (len(seqPos), 0)
+                        
+                        choices = []
+                        for cCount, choice in enumerate(inst[1]):
+                            choiceSeqId = f"{seqId}~{cCount}~hubchoice"
+                            choices.append({"sequence_ref": choiceSeqId})
+                            addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]})
+                            flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
+                            seqPos[choiceSeqId] = (len(seqPos), 1)
+                        flatSequences[hubSeqId][0][1]["choices"] = choices
+                        
+                    elif instType == "CHOICE_DIALOG":
+                        choices = [dict(c) for c in inst[1]["choices"]]
+                        for cCount, choice in enumerate(choices):
+                            choiceSeqId = f"{seqId}~{cCount}~dialogchoice"
+                            flatSequences[choiceSeqId] = choice.pop("sequence")
+                            choice["sequence_ref"] = choiceSeqId    
+                            seqPos[choiceSeqId] = (len(seqPos), i+1)
+                        cpyDict = dict(inst[1])
+                        cpyDict["choices"] = choices
+                        flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
+                    elif instType == "IF":
+                        choiceSeqIdTrue = f"{seqId}~true"
+                        choiceSeqIdFalse = f"{seqId}~false"
+                        flatSequences[choiceSeqIdTrue] = inst[1]["sequence_true"]
+                        flatSequences[choiceSeqIdFalse] = inst[1]["sequence_false"]
+                        flatSequences[seqId].append(("IF", {"eval_condition": inst[1]["eval_condition"], "sequence_ref_true" : choiceSeqIdTrue, "sequence_ref_false" :choiceSeqIdFalse}))
+                        seqPos[choiceSeqIdTrue] = (len(seqPos), i+1)
+                        seqPos[choiceSeqIdFalse] = (len(seqPos), i+1)
                     
-                    hubSeqId = f"{nodeDefnDict['id']}_Hub"
-                    
-                    flatSequences[seqId].append(("INTERNAL_JUMP", {"referenced_id" :hubSeqId}))
-                    
-                    flatSequences[hubSeqId] = [["HUB", {"choices" : [], "original_sequence" : seqId if i == 0 else None}]]
-                    seqPos[hubSeqId] = (len(seqPos), 0)
-                    
-                    choices = []
-                    for cCount, choice in enumerate(inst[1]):
-                        choiceSeqId = f"{seqId}~{cCount}~hubchoice"
-                        choices.append({"sequence_ref": choiceSeqId})
-                        addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]})
-                        flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
-                        seqPos[choiceSeqId] = (len(seqPos), 1)
-                    flatSequences[hubSeqId][0][1]["choices"] = choices
-                    
-                elif instType == "CHOICE_DIALOG":
-                    choices = [dict(c) for c in inst[1]["choices"]]
-                    for cCount, choice in enumerate(choices):
-                        choiceSeqId = f"{seqId}~{cCount}~dialogchoice"
-                        flatSequences[choiceSeqId] = choice.pop("sequence")
-                        choice["sequence_ref"] = choiceSeqId    
-                        seqPos[choiceSeqId] = (len(seqPos), i+1)
-                    cpyDict = dict(inst[1])
-                    cpyDict["choices"] = choices
-                    flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
-                elif instType == "IF":
-                    choiceSeqIdTrue = f"{seqId}~true"
-                    choiceSeqIdFalse = f"{seqId}~false"
-                    flatSequences[choiceSeqIdTrue] = inst[1]["sequence_true"]
-                    flatSequences[choiceSeqIdFalse] = inst[1]["sequence_false"]
-                    flatSequences[seqId].append(("IF", {"eval_condition": inst[1]["eval_condition"], "sequence_ref_true" : choiceSeqIdTrue, "sequence_ref_false" :choiceSeqIdFalse}))
-                    seqPos[choiceSeqIdTrue] = (len(seqPos), i+1)
-                    seqPos[choiceSeqIdFalse] = (len(seqPos), i+1)
-                
-                complexStatementUsed = True
+                    complexStatementUsed = True
+                except Exception:
+                    logger.warning(f"Error occurred in sequence {seqId} while processing instruction {i}: {inst}")
+                    raise
                 
     return flatSequences, seqPos
 
@@ -403,12 +408,14 @@ def _get_all_nodes_with_outgoing_links_in_sequences(seqList):
 
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
-    nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
-    nodeIdToParentIdDict, nodeIdToChildIdsDict,  = build_node_hierarchy(ast["chapter_node"]["id"], nodeToDefnDict)
+    #nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
+    chapterNodeId = [n["id"] for n in ast["nodes"] if n["node_type"] == "Chapter"][0]
+    logger.debug(f"Chapter node id is {chapterNodeId}")
+    nodeIdToParentIdDict, nodeIdToChildIdsDict,  = build_node_hierarchy(chapterNodeId, nodeToDefnDict)
     # print(json.dumps(nodeIdToParentIdDict, indent=2))
     # print(json.dumps(nodeIdToChildIdsDict, indent=2))
     
-    nodeIdProcessingOrder = get_processing_order(ast["chapter_node"]["id"], nodeIdToChildIdsDict)
+    nodeIdProcessingOrder = get_processing_order(chapterNodeId, nodeIdToChildIdsDict)
     
     logger.debug(f"Nodes and their order of processing: {nodeIdProcessingOrder}")
     
@@ -422,7 +429,7 @@ def compile_story(ast):
 
     resDict = {"nodes" : []}
     for nodeId in nodeIdProcessingOrder:
-        logger.debug(f"PROCESSING Node {nodeId}")
+        logger.info(f"PROCESSING Node {nodeId}")
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
         childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
         logger.debug(f"Parent: {parentId}, children: {childIds}")

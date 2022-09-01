@@ -1,0 +1,15 @@
+start : _NEWLINE? node_definition+
+
+node_definition : "*" node_type ID _NEWLINE node_lines
+
+node_type : "["? /[A-Za-z\-]+/ "]"?
+
+node_lines : (_non_node_lines | _NEWLINE)+
+
+_non_node_lines.9 : /[^\*\n\r].*/ _NEWLINE
+
+ID : /[A-Za-z0-9\-_]+/
+
+_NEWLINE: /\r?\n[\t ]*/
+%import common.WS_INLINE
+%ignore WS_INLINE

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Created on 8 Jul 2022
 
@@ -11,10 +12,14 @@ import os
 import logging
 import collections
 import json
+from lark.exceptions import LarkError, UnexpectedInput
+import traceback
 
 logger = logging.getLogger(__name__)
 
 _FILE_LOC = os.path.abspath(os.path.dirname(__file__))
+
+_GRAMMAR_FOLDER = os.path.join(_FILE_LOC, "grammar_definitions")
 
 # LARK_PARSER = Lark(r"""
 #
@@ -62,7 +67,7 @@ class StatementTransformer(lark.Transformer):
                     resp['exit_instruction'] = item.children[0].value.strip()
         return resp
         
-    def simple_dialog_statement(self, items):
+    def simple_dialog_line(self, items):
         #return "DIALOG_LINE", items[0].value, items[1].value
         return "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
     
@@ -188,25 +193,50 @@ class StatementTransformer(lark.Transformer):
         ret =  "IF", {"eval_condition" : items[0].value.strip(), "sequence_true":items[1].children, "sequence_false": items[2].children}
         return ret
 
+class NodeTransformer(lark.Transformer):
+    
+    def __init__(self, nodeDict):
+        self.nodeDict = nodeDict
+        super().__init__()
+    
+    def node_body(self, items):
+        nodeDict = self.nodeDict
+        for item in items:
+            # print("=============")
+            # print(type(item))
+            if type(item) == lark.Token:
+                raise RuntimeError(f"Unexpected token {item.type} in node_body")
+            elif type(item) == lark.Tree:
+                if item.data == "start_sequence_lines":
+                    nodeDict["start_sequence_lines"] = [c.value for c in item.children[0].children] # item.children[0]
+                elif item.data == "referenced_sequences_lines":
+                    nodeDict["referenced_sequences_lines"][item.children[0].value.strip()] = [c.value for c in item.children[1].children]
+                elif item.data == "node_properties":
+                    self._p_node_properties(item, nodeDict)
+                else:
+                    raise RuntimeError(f"Unexpected tree {item.data} in node_body")
+            else:
+                raise RuntimeError(f"Unexpected type in node_definition {item}")
+        return nodeDict
+
 class DocTransformer(lark.Transformer):
     
     def start(self, items):
-        return {"chapter_node" : items[0], "nodes" : items[1:]}
+        return items
     
-    def start_node(self, items):
-        rd = self.node_definition(items)
-        rd["node_type"] = "Chapter"
-        return rd
-    
-    def _p_node_properties(self, node_prop, nodeDict):
-        for item in node_prop.children:
-            if item.data == "node_description":
-                nodeDict["description"] = item.children[0].value.strip()
-            if item.data == "image":
-                nodeDict["image"] =item.children[0].value
+    # def _p_node_properties(self, node_prop, nodeDict):
+    #     for item in node_prop.children:
+    #         if item.data == "node_description":
+    #             nodeDict["description"] = item.children[0].value.strip()
+    #         if item.data == "image":
+    #             nodeDict["image"] =item.children[0].value
 
     def node_definition(self, items):
-        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "start_sequence" : None, "referenced_sequences": collections.OrderedDict()}
+        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None,
+                    "start_sequence" : None, "start_sequence_lines" : None,
+                    "referenced_sequences": collections.OrderedDict(),
+                    "referenced_sequences_lines" : collections.OrderedDict(),
+                    "node_lines" : None}
         for item in items:
             # print("=============")
             # print(type(item))
@@ -218,37 +248,112 @@ class DocTransformer(lark.Transformer):
             elif type(item) == lark.Tree:
                 if item.data == "node_type":
                     nodeDict["node_type"] = item.children[0].value.strip()
-                elif item.data == "start_sequence":
-                    nodeDict["start_sequence"] = item.children[0]
-                elif item.data == "referenced_sequence":
-                    nodeDict["referenced_sequences"][item.children[0].value.strip()] = item.children[1]
-                elif item.data == "node_properties":
-                    self._p_node_properties(item, nodeDict)
+                elif item.data == "node_lines":
+                    nodeDict["node_lines"] = [c.value for c in item.children]
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_definition")
             else:
                 raise RuntimeError(f"Unexpected type in node_definition {item}")
-        print(nodeDict["id"])
+        #print(nodeDict["id"])
         return nodeDict
+    
+def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
+    seqText = "\n".join(sequenceLinesList+[""])
+    try:
+        seqTree = lark.Lark(NodeGrammar, start='sequence', parser='lalr').parse(seqText)
+        return StatementTransformer().transform(seqTree)
+    except UnexpectedInput as le:
+        #errMsg = traceback.format_exc(limit=1)
+        if le.__context__ is not None and isinstance(le, UnexpectedInput):
+            ce = le.__context__
+        else:
+            ce = le
+        context = ce.get_context(seqText)
+        logger.error(f"Failed to parse sequence §{seqId} because of an error on the following context and error:\n{context}\nError:\n{ce}")
+        logger.info(f"Complete sequence text:\n{seqText}")
+        return None
+                
 
-def parse(lines):
+def parse(lines, debugOutputFolderPath):
     cont = "\n".join(lines)
+    errorCount = 0
+    if True:
+        
+        with open(os.path.join(_GRAMMAR_FOLDER, "doc_grammar.ebnf"), "r", encoding="utf-8") as f:
+            DocGrammar = f.read()
+        with open(os.path.join(_GRAMMAR_FOLDER, "node_grammar.ebnf"), "r", encoding="utf-8") as f:
+            NodeGrammar = f.read()
+        with open(os.path.join(_GRAMMAR_FOLDER, "sequence_grammar.ebnf"), "r", encoding="utf-8") as f:
+            SequenceGrammar = f.read()
+        
+        docTree = lark.Lark(DocGrammar, start='start', parser='lalr').parse(cont)
+        #print(docTree.pretty())
+        
+        nodes = DocTransformer().transform(docTree)
+        
+        ret = {"nodes": []}
+        
+        for node in nodes:
+            #logger.info(f"Lexer processing node {node['id']}")
+            nodelines = node["node_lines"]
+            if nodelines[0].lower().startswith("description"):
+                node["description"] = nodelines[0].split(":")[1]
+                nodelines.pop(0)
+            if nodelines[0].startswith("<IMAGE"):
+                node["image"] = nodelines[0][7:-1]
+                nodelines.pop(0)
+            nodelines.append("")
+            nodeTxt = "\n".join(nodelines)
+            try:
+                nodeTree = lark.Lark(NodeGrammar, start='node_body', parser='lalr').parse(nodeTxt)
+                  
+                #n = StatementTransformer().transform(nodeTree)
+                n = NodeTransformer(node).transform(nodeTree)
+                
+                startSeq = _trans_seq_tree(node["id"]+"_start-sequence", SequenceGrammar, node["start_sequence_lines"])
+                if startSeq == None:
+                    errorCount += 1
+                else:
+                    n["start_sequence"] = startSeq
+                    
+                for refSeqId in n["referenced_sequences_lines"]:
+                    rSeq = _trans_seq_tree(refSeqId, SequenceGrammar, n["referenced_sequences_lines"][refSeqId])
+                    if rSeq == None:
+                        errorCount += 1
+                    else:
+                        n["referenced_sequences"][refSeqId] = rSeq
+                
+                ret["nodes"].append(n)
+                logger.info(f"Successfully parsed node {node['id']}")
+            except UnexpectedInput as le:
+                #errMsg = traceback.format_exc(limit=1)
+                if le.__context__ is not None and isinstance(le, UnexpectedInput):
+                    ce = le.__context__
+                else:
+                    ce = le
+                context = ce.get_context(nodeTxt)
+                logger.error(f"Failed to parse node {node['id']} because of an error on the following context and error:\n{context}\n\nError:\n{ce}")
+        
+        return ret
+    else:
+        
+        
+        
+        with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
+            fileCont = f.read()
+        
+        tree = lark.Lark(fileCont, start='start', parser='lalr', debug=True).parse(cont)
+        
+        n = StatementTransformer().transform(tree)
+        n = DocTransformer().transform(n)
+        
+        # print("=======\nChapter node:")
+        # print_node("", n["chapter_node"])
+        # print("=======\nNodes")
+        # for restNode in n["nodes"]:
+        #     print_node("", restNode)
     
-    with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
-        fileCont = f.read()
-    
-    tree = lark.Lark(fileCont, start='start', parser='earley').parse(cont)
-    
-    n = StatementTransformer().transform(tree)
-    n = DocTransformer().transform(n)
-    
-    # print("=======\nChapter node:")
-    # print_node("", n["chapter_node"])
-    # print("=======\nNodes")
-    # for restNode in n["nodes"]:
-    #     print_node("", restNode)
-
-    return n
+        return n
     
 def pp(prefix, txt):
     print(prefix+str(txt))

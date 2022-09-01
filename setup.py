@@ -36,7 +36,7 @@ setup(
     packages=find_packages(),
     # for defining other resource files if they need to be included in the installation
     package_data={
-        '' : ['*.md', '*_defn']
+        '' : ['*.md', '*_defn', "*.ebnf"]
     },
     
     # Set this is using a MANIFEST.in 

@@ -7,6 +7,7 @@ import re
 import collections
 import json
 import os
+import errno
 
 ID_MATCHER = re.compile("[A-Za-z\\-0-9]+")
 
@@ -196,18 +197,33 @@ def parse(inputWordDoc, outputJsonFilePath, outputImageDir, characterList):
         if not currrentLine:
             continue
         lines.append(currrentLine)
+        
+    lines.append("") # add a trailing newline
+        
+    outputDirPath = os.path.dirname(outputJsonFilePath)
+    debugDirPath = os.path.join(outputDirPath, "debug")
     
-    linesOutputLocaiton = os.path.join(os.path.dirname(outputJsonFilePath),"doc_output.json")
+    try:
+        os.makedirs(debugDirPath)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+    rawOutputLocaiton = os.path.join(debugDirPath,"doc_output.raw")
+    with open(rawOutputLocaiton, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    
+    linesOutputLocaiton = os.path.join(debugDirPath,"doc_output.json")
     with open(linesOutputLocaiton, "w") as fh:
         json.dump(lines, fh, indent=2)
     
     logger.info(f"Extracted {len(lines)} lines. A copy was written to {linesOutputLocaiton}")
     from lw_doc_extractor import lexer, story_compiler
-    ast = lexer.parse(lines)
+    ast = lexer.parse(lines, debugDirPath)
     
     logger.info(f"Lexing complete")
     
-    lexOutPath = os.path.join(os.path.dirname(outputJsonFilePath),"lexer_output.json")
+    lexOutPath = os.path.join(debugDirPath,"lexer_output.json")
     
     with open(lexOutPath, "w") as fh:
         json.dump(ast, fh, indent=2)

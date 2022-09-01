@@ -1,0 +1,19 @@
+
+node_body : start_sequence_lines referenced_sequences_lines*
+
+// sequence defn
+start_sequence_lines : sequence
+referenced_sequences_lines: "§" ID _NEWLINE sequence
+
+sequence : _sequence_lines+
+_sequence_lines.-9 : /[^\§\n\r].*/ _NEWLINE
+
+
+// Terminals
+ID : /[A-Za-z0-9\-_]+/
+
+// whitespace handling
+
+_NEWLINE: /\r?\n[\t ]*/
+%import common.WS_INLINE
+%ignore WS_INLINE

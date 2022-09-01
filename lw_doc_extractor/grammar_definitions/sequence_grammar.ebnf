@@ -1,0 +1,76 @@
+
+sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements | hub_statement_block | choice_dialog_statement | if_block )+
+inner_sequence: (inner_statement | simple_dialog_line | jump_statements)+
+
+
+// hub
+hub_statement_block :  "-" "HUB" _NEWLINE hub_choice+ "HUB_CHOICE_END" _NEWLINE
+hub_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
+
+// if
+if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "ENDIF" _NEWLINE
+
+// jump statement
+?jump_statements : internal_jump_statement | external_jump_statement
+
+internal_jump_statement : ">" REFERENCED_ID _NEWLINE
+external_jump_statement : "►" REFERENCED_ID _NEWLINE
+
+// dialog
+simple_dialog_line.-1 : ENTITY_NAME COMMENT? _NEWLINE SPOKEN_TEXT _NEWLINE
+
+choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
+player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
+player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? _NEWLINE condition? exit_instruction? inner_sequence
+
+// inner statement
+?inner_statement : "-" inner_statement_cmd _NEWLINE
+?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement
+
+load_stage_statement : "LOAD_STAGE" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+stage_event_statement : "STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+sync_stage_event_statement : "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+game_event_listener_statement : "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+
+mindset_notification_statement : "MINDSET_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+wiki_notification_statement : "WIKI_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+
+set_statement : "SET" REST_OF_LINE
+node_ref_statement : "*" ID
+the_end_statement : "THE_END" STATEMENT_DESCRIPTION?
+
+start_quest_statement : "START_QUEST" QUEST_ID
+end_quest_statement : "END_QUEST" QUEST_ID
+
+
+//conditions
+condition : "IF" REST_OF_LINE _NEWLINE
+exit_instruction : "SET" REST_OF_LINE _NEWLINE
+
+// Terminals
+ID : /[A-Za-z0-9\-_]+/
+REFERENCED_ID : /[A-Za-z0-9\-_]+/
+
+ENTITY_NAME.-1 : /[A-Z]+/ ENTITY_COUNTER?
+ENTITY_COUNTER : /\s*[0-9]+/
+
+SPOKEN_TEXT: /[^\n\r]+/
+QUEST_ID : /[^\n\r]+/
+
+STATEMENT_DESCRIPTION : /[^\n\r\{]+/
+EVENT_ID : /[A-Za-z0-9\-_:]+/
+
+REST_OF_LINE : /[^\n\r]+/
+
+MENU_TEXT : /[^\]]+/
+
+// whitespace handling
+
+_NEWLINE: /\r?\n[\t ]*/
+%import common.WS_INLINE
+%ignore WS_INLINE
+
+
+LINE_COMMENT.-9 : /\([^\)]*\)/ _NEWLINE
+COMMENT: /\([^\)]*\)/ 
+%ignore LINE_COMMENT
