@@ -264,7 +264,7 @@ def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
         return StatementTransformer().transform(seqTree)
     except UnexpectedInput as le:
         #errMsg = traceback.format_exc(limit=1)
-        if le.__context__ is not None and isinstance(le, UnexpectedInput):
+        if le.__context__ is not None and isinstance(le.__context__, UnexpectedInput):
             ce = le.__context__
         else:
             ce = le
@@ -277,83 +277,84 @@ def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
 def parse(lines, debugOutputFolderPath):
     cont = "\n".join(lines)
     errorCount = 0
-    if True:
         
-        with open(os.path.join(_GRAMMAR_FOLDER, "doc_grammar.ebnf"), "r", encoding="utf-8") as f:
-            DocGrammar = f.read()
-        with open(os.path.join(_GRAMMAR_FOLDER, "node_grammar.ebnf"), "r", encoding="utf-8") as f:
-            NodeGrammar = f.read()
-        with open(os.path.join(_GRAMMAR_FOLDER, "sequence_grammar.ebnf"), "r", encoding="utf-8") as f:
-            SequenceGrammar = f.read()
-        
-        docTree = lark.Lark(DocGrammar, start='start', parser='lalr').parse(cont)
-        #print(docTree.pretty())
-        
-        nodes = DocTransformer().transform(docTree)
-        
-        ret = {"nodes": []}
-        
-        for node in nodes:
-            #logger.info(f"Lexer processing node {node['id']}")
-            nodelines = node["node_lines"]
-            if nodelines[0].lower().startswith("description"):
-                node["description"] = nodelines[0].split(":")[1]
-                nodelines.pop(0)
-            if nodelines[0].startswith("<IMAGE"):
-                node["image"] = nodelines[0][7:-1]
-                nodelines.pop(0)
-            nodelines.append("")
-            nodeTxt = "\n".join(nodelines)
-            try:
-                nodeTree = lark.Lark(NodeGrammar, start='node_body', parser='lalr').parse(nodeTxt)
-                  
-                #n = StatementTransformer().transform(nodeTree)
-                n = NodeTransformer(node).transform(nodeTree)
+    with open(os.path.join(_GRAMMAR_FOLDER, "doc_grammar.ebnf"), "r", encoding="utf-8") as f:
+        DocGrammar = f.read()
+    with open(os.path.join(_GRAMMAR_FOLDER, "node_grammar.ebnf"), "r", encoding="utf-8") as f:
+        NodeGrammar = f.read()
+    with open(os.path.join(_GRAMMAR_FOLDER, "sequence_grammar.ebnf"), "r", encoding="utf-8") as f:
+        SequenceGrammar = f.read()
+    
+    docTree = lark.Lark(DocGrammar, start='start', parser='lalr').parse(cont)
+    #print(docTree.pretty())
+    
+    nodes = DocTransformer().transform(docTree)
+    
+    ret = {"nodes": []}
+    
+    for node in nodes:
+        #logger.info(f"Lexer processing node {node['id']}")
+        nodelines = node["node_lines"]
+        if nodelines[0].lower().startswith("description"):
+            node["description"] = nodelines[0].split(":")[1]
+            nodelines.pop(0)
+        if nodelines[0].startswith("<IMAGE"):
+            node["image"] = nodelines[0][7:-1]
+            nodelines.pop(0)
+        nodelines.append("")
+        nodeTxt = "\n".join(nodelines)
+        try:
+            nodeTree = lark.Lark(NodeGrammar, start='node_body', parser='lalr').parse(nodeTxt)
+              
+            #n = StatementTransformer().transform(nodeTree)
+            n = NodeTransformer(node).transform(nodeTree)
+            
+            startSeq = _trans_seq_tree(node["id"]+"_start-sequence", SequenceGrammar, node["start_sequence_lines"])
+            if startSeq == None:
+                errorCount += 1
+            else:
+                n["start_sequence"] = startSeq
                 
-                startSeq = _trans_seq_tree(node["id"]+"_start-sequence", SequenceGrammar, node["start_sequence_lines"])
-                if startSeq == None:
+            for refSeqId in n["referenced_sequences_lines"]:
+                rSeq = _trans_seq_tree(refSeqId, SequenceGrammar, n["referenced_sequences_lines"][refSeqId])
+                if rSeq == None:
                     errorCount += 1
                 else:
-                    n["start_sequence"] = startSeq
-                    
-                for refSeqId in n["referenced_sequences_lines"]:
-                    rSeq = _trans_seq_tree(refSeqId, SequenceGrammar, n["referenced_sequences_lines"][refSeqId])
-                    if rSeq == None:
-                        errorCount += 1
-                    else:
-                        n["referenced_sequences"][refSeqId] = rSeq
-                
-                ret["nodes"].append(n)
-                logger.info(f"Successfully parsed node {node['id']}")
-            except UnexpectedInput as le:
-                #errMsg = traceback.format_exc(limit=1)
-                if le.__context__ is not None and isinstance(le, UnexpectedInput):
-                    ce = le.__context__
-                else:
-                    ce = le
-                context = ce.get_context(nodeTxt)
-                logger.error(f"Failed to parse node {node['id']} because of an error on the following context and error:\n{context}\n\nError:\n{ce}")
-        
-        return ret
-    else:
+                    n["referenced_sequences"][refSeqId] = rSeq
+            
+            ret["nodes"].append(n)
+            logger.info(f"Successfully parsed node {node['id']}")
+        except UnexpectedInput as le:
+            #errMsg = traceback.format_exc(limit=1)
+            errorCount += 1
+            if le.__context__ is not None and isinstance(le, UnexpectedInput):
+                ce = le.__context__
+            else:
+                ce = le
+            context = ce.get_context(nodeTxt)
+            logger.error(f"Failed to parse node {node['id']} because of an error on the following context and error:\n{context}\n\nError:\n{ce}")
+    
+    if errorCount > 0:
+        raise RuntimeError(f"Parsing failed with {errorCount} structural (lexing) errors")
+    
+    return ret
+
         
         
-        
-        with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
-            fileCont = f.read()
-        
-        tree = lark.Lark(fileCont, start='start', parser='lalr', debug=True).parse(cont)
-        
-        n = StatementTransformer().transform(tree)
-        n = DocTransformer().transform(n)
+        # with open(os.path.join(_FILE_LOC, "grammar_defn"), "r") as f:
+        #     fileCont = f.read()
+        #
+        # tree = lark.Lark(fileCont, start='start', parser='lalr', debug=True).parse(cont)
+        #
+        # n = StatementTransformer().transform(tree)
+        # n = DocTransformer().transform(n)
         
         # print("=======\nChapter node:")
         # print_node("", n["chapter_node"])
         # print("=======\nNodes")
         # for restNode in n["nodes"]:
         #     print_node("", restNode)
-    
-        return n
+
     
 def pp(prefix, txt):
     print(prefix+str(txt))

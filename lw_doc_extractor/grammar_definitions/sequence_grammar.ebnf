@@ -1,6 +1,10 @@
 
-sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements | hub_statement_block | choice_dialog_statement | if_block )+
+sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements | hub_statement_block | choice_dialog_statement | if_block | shac_statement_block )+
 inner_sequence: (inner_statement | simple_dialog_line | jump_statements)+
+
+// shac
+shac_statement_block :  "-" "SHAC" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
+shac_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
 
 
 // hub
@@ -35,7 +39,7 @@ game_event_listener_statement : "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION ("{"
 mindset_notification_statement : "MINDSET_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 wiki_notification_statement : "WIKI_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
 
-set_statement : "SET" REST_OF_LINE
+set_statement : "SET" INSTRUCTION
 node_ref_statement : "*" ID
 the_end_statement : "THE_END" STATEMENT_DESCRIPTION?
 
@@ -51,7 +55,7 @@ exit_instruction : "SET" REST_OF_LINE _NEWLINE
 ID : /[A-Za-z0-9\-_]+/
 REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
-ENTITY_NAME.-1 : /[A-Z]+/ ENTITY_COUNTER?
+ENTITY_NAME.-1 : /[A-Z]+/ /[A-Z]+/? ENTITY_COUNTER?
 ENTITY_COUNTER : /\s*[0-9]+/
 
 SPOKEN_TEXT: /[^\n\r]+/
@@ -61,6 +65,7 @@ STATEMENT_DESCRIPTION : /[^\n\r\{]+/
 EVENT_ID : /[A-Za-z0-9\-_:]+/
 
 REST_OF_LINE : /[^\n\r]+/
+INSTRUCTION : /[^\n\r]+/
 
 MENU_TEXT : /[^\]]+/
 

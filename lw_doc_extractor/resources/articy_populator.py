@@ -224,6 +224,9 @@ def getNodeTmpl(node):
                 "Section" : "Section",
                 "D-EAV" : "D_EAV",
                 "D-DEF" : "D_DEF",
+                "D-NPC" : "D_NPC",
+                "D-AWD" : "D_AWD",
+                "D-SWD" : "D_SWD",
                 "C-CUT" : "C_CUT",
                 "C-SEG" : "C_SEG"
                 }
@@ -488,6 +491,9 @@ def main():
     args = parser.parse_args()
     _eval_parser_log_arguments(args)
     
+    if not os.path.isfile(args.intput_file):
+        raise RuntimeError("Invalid input file {args.intput_file} given. Path does not exist.".format(args.intput_file))
+    
     projectToOpenName = "api_test_proj"
 
     ml = MyLogger();
@@ -507,11 +513,14 @@ def main():
     #print("'{}' '{}'".format( user, userpass))
     session.Login(user, userpass)
     
+    loggedIn = False
+    projectOpened = False
     try:
         if not session.IsLoggedIn():
             logger.warning("Session is not logged in")
         else:
             logger.info("Login complete")
+            loggedIn = True
         
         projList = session.GetProjectList()
         
@@ -534,6 +543,7 @@ def main():
             
             session.OpenProject(opArts)
             logger.info("Project {} opened".format(projectToOpenName))
+            projectOpened = True
             
             articyApi = ArticyApiWrapper(session)
             
@@ -553,10 +563,14 @@ def main():
             
             # characterDict = get_character_name_to_obj_dict(session)
             # logger.info("Character list: {}".format(characterDict.keys()))
-            
+    except:
+        logger.info("Error occurred. Stacktrace: ", exc_info=True )
+        raise
     finally:
-        session.UnclaimAllMyPartitions()
-        session.Logout()
+        if projectOpened:
+            session.UnclaimAllMyPartitions()
+        if loggedIn:
+            session.Logout()
         ArticyApi.Shutdown()
     print("Done")
 
