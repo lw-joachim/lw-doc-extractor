@@ -1,9 +1,22 @@
 
-node_body : start_sequence_lines referenced_sequences_lines*
+node_body : (description_block | description_line)? flags? start_sequence_lines referenced_sequences_lines*
+
+// description
+description_block.4 : "DESCRIPTION_BLOCK" _NEWLINE DESCR_LINE+ "DESCRIPTION_BLOCK_END" _NEWLINE
+description_line.3 : "DESCRIPTION" DESCR_LINE
+
+DESCR_LINE.-1 : /[^\§\n\r]*/ _NEWLINE
+
+// flags
+flags.2 : "FLAGS" _NEWLINE flag_line+ "FLAGS_END" _NEWLINE
+flag_line : VARIABLE "=" VALUE FLAG_DESCR? _NEWLINE
+VALUE : ("true" | "false")
+VARIABLE : /[A-Za-z_.]+/
+FLAG_DESCR : "(" /[^\)]+/ ")"
 
 // sequence defn
-start_sequence_lines : sequence
-referenced_sequences_lines: "§" ID _NEWLINE sequence
+start_sequence_lines.-1 : sequence
+referenced_sequences_lines.-2: "§" ID _NEWLINE sequence
 
 sequence : _sequence_lines+
 _sequence_lines.-9 : /[^\§\n\r].*/ _NEWLINE

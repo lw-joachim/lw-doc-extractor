@@ -53,15 +53,15 @@ except:
 
 
 class MyOpenProjArgs(Articy.Api.OpenProjectArgs):
-    def __init__(self, ProjGuid):
+    def __init__(self, ProjGuid, user, userpass):
         self.ProjGuid = ProjGuid
         self.ProjectGuid = ProjGuid
         self.ProjectFolder = r"C:\work\articy_projects\api_test_proj_cli"
         self.CleanCheckout = True
         self.ForceProjectFolder = True
-        self.ScmUsername = "Kestner"
-        self.ScmPassword = "coqjanjaasioqweDE"
-        self.OpenExclusively = False
+        self.ScmUsername = user
+        self.ScmPassword = userpass
+        self.OpenExclusively = True
 
 
 # string aMessageSource, EntryType aType, string aText
@@ -534,7 +534,7 @@ def main():
         
         if(projToOpen):
             logger.debug("Found project to open: {}".format(projToOpen))
-            opArts = MyOpenProjArgs(projToOpen)
+            opArts = MyOpenProjArgs(projToOpen, user, userpass)
             
             #pdb.set_trace()
             

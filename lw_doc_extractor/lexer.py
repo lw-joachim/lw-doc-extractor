@@ -197,7 +197,7 @@ class NodeTransformer(lark.Transformer):
     
     def __init__(self, nodeDict):
         self.nodeDict = nodeDict
-        super().__init__()
+        super().__init__() 
     
     def node_body(self, items):
         nodeDict = self.nodeDict
@@ -213,6 +213,14 @@ class NodeTransformer(lark.Transformer):
                     nodeDict["referenced_sequences_lines"][item.children[0].value.strip()] = [c.value for c in item.children[1].children]
                 elif item.data == "node_properties":
                     self._p_node_properties(item, nodeDict)
+                elif item.data == "description_line":
+                    nodeDict["description"] = item.children[0].value.strip()
+                elif item.data == "description_block":
+                    nodeDict["description"] = "\n".join([d.value.strip() for d in item.children])
+                elif item.data == "flags":
+                    print("=!=")
+                    print(item.children)
+                    print("=!=")
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_body")
             else:
@@ -232,7 +240,7 @@ class DocTransformer(lark.Transformer):
     #             nodeDict["image"] =item.children[0].value
 
     def node_definition(self, items):
-        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None,
+        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "flags" : None,
                     "start_sequence" : None, "start_sequence_lines" : None,
                     "referenced_sequences": collections.OrderedDict(),
                     "referenced_sequences_lines" : collections.OrderedDict(),
@@ -295,17 +303,18 @@ def parse(lines, debugOutputFolderPath):
     for node in nodes:
         #logger.info(f"Lexer processing node {node['id']}")
         nodelines = node["node_lines"]
-        if nodelines[0].lower().startswith("description"):
-            node["description"] = nodelines[0].split(":")[1]
-            nodelines.pop(0)
         if nodelines[0].startswith("<IMAGE"):
             node["image"] = nodelines[0][7:-1]
             nodelines.pop(0)
+        # if nodelines[0].lower().startswith("description"):
+        #     node["description"] = nodelines[0].split(":")[1]
+        #     nodelines.pop(0)
         nodelines.append("")
         nodeTxt = "\n".join(nodelines)
         try:
-            nodeTree = lark.Lark(NodeGrammar, start='node_body', parser='lalr').parse(nodeTxt)
-              
+            nodeTree = lark.Lark(NodeGrammar, start='node_body', parser='earley').parse(nodeTxt)
+            
+            #print(nodeTree.pretty())
             #n = StatementTransformer().transform(nodeTree)
             n = NodeTransformer(node).transform(nodeTree)
             
@@ -327,7 +336,7 @@ def parse(lines, debugOutputFolderPath):
         except UnexpectedInput as le:
             #errMsg = traceback.format_exc(limit=1)
             errorCount += 1
-            if le.__context__ is not None and isinstance(le, UnexpectedInput):
+            if le.__context__ is not None and isinstance(le.__context__, UnexpectedInput):
                 ce = le.__context__
             else:
                 ce = le
