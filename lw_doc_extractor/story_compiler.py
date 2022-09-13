@@ -7,10 +7,30 @@ import json
 import collections
 import re
 import logging
+import binascii
 
 logger = logging.getLogger(__name__)
 
 NODE_TITLE_MATCHER = re.compile("[^{]+{([^}])}")
+
+def get_dialog_line_id(enityName, menuText, lineText):
+    
+    
+    en = enityName.strip() if enityName else ""
+    mt = menuText.strip() if menuText else ""
+    lt = lineText.strip() if lineText else ""
+    
+    crcStr = "{}#{}#{}".format(en, mt, lt )
+    
+    acrc = binascii.crc32(crcStr.encode("utf-8"))
+
+    resHex = "{:08X}".format(acrc)
+    
+    retStr = "{}#{}#{}#{}".format(resHex, en, mt, lineText)
+    if len(retStr) > 64:
+        retStr = retStr[:64]
+    print(len(retStr))
+    return  retStr
 
 def build_node_hierarchy(rootNodeId, nodeToDefnDict):
     nodeIdToParentIdDict = {}
@@ -52,13 +72,13 @@ def auto_link_hub(nodeId, sequenceDict, currentHub, parentHub, allNodesWithOutgo
         if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END"]:
             if nodeId in allNodesWithOutgoingLinks:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : nodeId}))
-                logger.debug(f"For sequence {seqId} adding internal return jump to {nodeId}")
+                logger.info(f"For sequence {seqId} adding internal return jump to {nodeId}")
             elif currentHub != None:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : currentHub}))
-                logger.debug(f"For sequence {seqId} adding internal jump to {currentHub}")
+                logger.info(f"For sequence {seqId} adding internal jump to {currentHub}")
             elif parentHub != None:
                 sequenceDict[seqId].append(("EXTERNAL_JUMP", {"referenced_id" : parentHub}))
-                logger.debug(f"For sequence {seqId} adding external jump to {parentHub}")
+                logger.info(f"For sequence {seqId} adding external jump to {parentHub}")
             else:
                 raise RuntimeError(f"Cannot fix sequence {seqId}.")
     
@@ -250,7 +270,8 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                     for cDict in instrPrmDict["choices"]:
                         internal_id = nodeId+"_"+str(len(instructions))
                         choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : None, "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
-                        instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": None}
+                        extCId = get_dialog_line_id(instrPrmDict["entity_name"], cDict["menu_text"], cDict["spoken_text"])
+                        instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": extCId}
                         instructions.append(instrDict)
                         instructionPos.append((seqPosX+intrPosCnt, seqPosY))
                         sequenceStartPos[cDict["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
@@ -266,6 +287,7 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                     intrPosY = seqPosY
                     internal_id = nodeId+"_"+str(len(instructions))
                     instrPrms = instrPrmDict
+                    extId = None
                     if instType == "IF":
                         jumpsToProcess.append((internal_id, 0, instrPrmDict["sequence_ref_true"]))
                         jumpsToProcess.append((internal_id, 1, instrPrmDict["sequence_ref_false"]))
@@ -285,8 +307,14 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                         intrPosAddX = 2
                     elif instType == "NODE_REF":
                         nodesReferenced.append(instrPrmDict["id"])
+                        extId = instrPrmDict["id"]
+                    elif instType == "DIALOG_LINE":
+                        entNm = instrPrmDict["entity_name"]
+                        entTxt = instrPrmDict["spoken_text"]
+                        nmuTxt = instrPrmDict["menu_text"]
+                        extId = get_dialog_line_id(entNm, nmuTxt, entTxt)
                     
-                    instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": sequenceId}
+                    instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": extId}
                     instructions.append(instrDict)
                     instructionPos.append((seqPosX+intrPosCnt, intrPosY))
                     intrPosCnt += intrPosAddX
@@ -346,7 +374,7 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
             if cId not in nodesReferenced:
                 logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
                 internal_id = nodeId+"_"+str(len(instructions))
-                instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "external_id": None}
+                instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "external_id": cId}
                 instructions.append(instrDict)
                 instructionPos.append((0, seqPosY+1+i))
                 seqPosY += 1
