@@ -125,6 +125,27 @@ class StatementTransformer(lark.Transformer):
     #         def method(*args, **kwargs):
     #             return self._process_generic_statement(name, *args, **kwargs)
     #     raise AttributeError(f"Name {name} not part of {type(self)}")
+    def shac_choice(self, items):
+        returnDict = {"choice_description" : None, "sequence" : None, "event_id" : None}
+        for item in items:
+            if type(item) == lark.Token:
+                if item.type == "STATEMENT_DESCRIPTION":
+                    returnDict["choice_description"] = item.value.strip()
+                elif item.type == "EVENT_ID":
+                    returnDict["event_id"] = item.value.strip()
+                else:
+                    raise RuntimeError(f"Unexpected token {item.type} in shac_choice")
+            elif type(item) == lark.Tree:
+                if item.data == "inner_sequence":
+                    returnDict["sequence"] = item.children
+                else:
+                    raise RuntimeError(f"Unexpected tree {item.data} in shac_choice")
+            else:
+                raise RuntimeError(f"Unexpected type in shac_choice {item}")
+        return returnDict
+    
+    def shac_statement_block(self, items):
+        return "SHAC", items
     
     def hub_choice(self, items):
         returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None, "event_id" : None}
@@ -282,7 +303,7 @@ def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
         return None
                 
 
-def parse(lines, debugOutputFolderPath):
+def parse(lines):
     cont = "\n".join(lines)
     errorCount = 0
         

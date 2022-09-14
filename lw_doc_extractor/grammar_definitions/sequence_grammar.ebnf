@@ -12,7 +12,7 @@ hub_statement_block :  "-" "HUB" _NEWLINE hub_choice+ "HUB_CHOICE_END" _NEWLINE
 hub_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
 
 // if
-if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "ENDIF" _NEWLINE
+if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "END_IF" _NEWLINE
 
 // jump statement
 ?jump_statements : internal_jump_statement | external_jump_statement

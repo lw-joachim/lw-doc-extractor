@@ -29,7 +29,6 @@ def get_dialog_line_id(enityName, menuText, lineText):
     retStr = "{}#{}#{}#{}".format(resHex, en, mt, lineText)
     if len(retStr) > 64:
         retStr = retStr[:64]
-    print(len(retStr))
     return  retStr
 
 def build_node_hierarchy(rootNodeId, nodeToDefnDict):
@@ -149,6 +148,17 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                         cpyDict = dict(inst[1])
                         cpyDict["choices"] = choices
                         flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
+                    elif instType == "SHAC_CHOICE":
+                        
+                        flatSequences[seqId].append(["HUB", {"choices" : [], "original_sequence" : None}])
+                        for cCount, choice in enumerate(inst[1]):
+                            choiceSeqId = f"{seqId}~{cCount}~shacchoice"
+                            choices.append({"sequence_ref": choiceSeqId})
+                            addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : None, "exit_instruction": None, "event_id" : choice["event_id"]})
+                            flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
+                            seqPos[choiceSeqId] = (len(seqPos), 1)
+                            flatSequences[seqId][-1][1]["choices"] = choices
+                        
                     elif instType == "IF":
                         choiceSeqIdTrue = f"{seqId}~true"
                         choiceSeqIdFalse = f"{seqId}~false"
@@ -165,7 +175,7 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                 
     return flatSequences, seqPos
 
-def _collapse_links(sequences):
+def _collapse_links(sequences, allNodeIds):
     retDict = {}
     def _collapse_internal(refNode):
         seqList = sequences[refNode]
@@ -191,7 +201,7 @@ def _collapse_links(sequences):
     return retDict
 
 
-def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithOutlinksTracker):
+def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithOutlinksTracker, allNodeIds):
     nodeId = nodeDefnDict["id"]
     
     # array to keep track of nodes that have been referenced to determine which have not
@@ -224,7 +234,7 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
         
         seqenceToNodeIntId = {}
     
-        collapsedSequenceIdToTarget = _collapse_links(flattenedSequences)
+        collapsedSequenceIdToTarget = _collapse_links(flattenedSequences, allNodeIds)
         # print("==== Collapsed list")
         # print(json.dumps(collapsedSequenceIdToTarget, indent =2 ))
         
@@ -306,6 +316,9 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                             seqenceToNodeIntId[instrPrmDict["original_sequence"]] = internal_id
                         intrPosAddX = 2
                     elif instType == "NODE_REF":
+                        if instrPrmDict["id"] not in allNodeIds:
+                            raise RuntimeError(f"Unknown node reference {instrPrmDict['id']}")
+                        
                         nodesReferenced.append(instrPrmDict["id"])
                         extId = instrPrmDict["id"]
                     elif instType == "DIALOG_LINE":
@@ -374,7 +387,10 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
             if cId not in nodesReferenced:
                 logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
                 internal_id = nodeId+"_"+str(len(instructions))
+                if cId not in allNodeIds:
+                    raise RuntimeError(f"Unknown node reference {cId}")
                 instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "external_id": cId}
+                
                 instructions.append(instrDict)
                 instructionPos.append((0, seqPosY+1+i))
                 seqPosY += 1
@@ -440,6 +456,42 @@ def _get_all_nodes_with_outgoing_links_in_sequences(seqList):
                 ret.append(seqInsr[1]["id"])
     return ret
 
+def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChildIdsDict):
+    if not parentId:
+        return False
+    
+    if nodeId == parentId:
+        return True
+    
+    parentNode = nodeIdToProcDict[parentId]
+    if referenceStr in parentNode["target_to_internal_id"]:
+        return True
+    
+    if referenceStr in nodeIdToChildIdsDict[parentNode["id"]]:
+        return True
+    
+    return checkInParents(referenceStr, nodeId, parentNode["parent"], nodeIdToProcDict, nodeIdToChildIdsDict)
+        
+
+def checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
+    
+    nodeIdToProcDict = {}
+    for n in processNodesList:
+        nodeIdToProcDict[n["id"]] = n
+    
+    errCnt = 0
+    for n in processNodesList:
+        np = n["parent"]
+        for _, _, lTarget in n["external_links"]:
+            valid = checkInParents(lTarget, n["id"], np, nodeIdToProcDict, nodeIdToChildIdsDict)
+            if not valid:
+                logger.warning(f"Unknown external reference {lTarget} in node {n['id']}")
+                errCnt += 1;
+    
+    if errCnt > 0:
+        raise RuntimeError(f"There are {errCnt} external reference errors")
+    
+
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
     #nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
@@ -462,6 +514,7 @@ def compile_story(ast):
     
 
     resDict = {"nodes" : []}
+    allNodeIds = list(nodeToDefnDict.keys())
     for nodeId in nodeIdProcessingOrder:
         logger.info(f"PROCESSING Node {nodeId}")
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
@@ -470,8 +523,13 @@ def compile_story(ast):
         parentHub = None
         if parentId:
             parentHub = _get_hub_id(nodeToDefnDict[parentId])
-        nodeDict = process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker)
+        nodeDict = process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker, allNodeIds)
         resDict["nodes"].append(nodeDict)
+    
+    logger.info("Checking if external references are valid for all nodes")
+    checkExternalReferences(resDict["nodes"], nodeIdToChildIdsDict)
+    logger.info("Checking if external references complete")
+    logger.info("Commpilation complete")
         
     return resDict
     
