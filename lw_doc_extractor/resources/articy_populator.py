@@ -32,7 +32,10 @@ except:
     logger.exception("Error importing .net dependencies of articy populator")
 
 
-pathsToAdd = [r"C:\soft\articy_draft_API\bin\x64", r"C:\soft\articy_draft_API\bin\x64\SharpSVN_1_9", r"C:\soft\articy_draft_API\bin\x64\SharpSVN_1_8", r"C:\soft\articy_draft_API\bin\x64\SharpSVN_1_7", r"C:\soft\articy_draft_API\bin\x64\en-US"]
+#_dirPath = os.path.dirname(__file__)
+_dirPath = r"C:\soft\articy_api"
+
+pathsToAdd = [os.path.join(_dirPath, sp) for sp in [r"bin\x64", r"bin\x64\SharpSVN_1_9", r"bin\x64\SharpSVN_1_8", r"bin\x64\SharpSVN_1_7", r"bin\x64\en-US"]]
 
 origDir= os.getcwd()
 for p in pathsToAdd:
@@ -61,7 +64,7 @@ class MyOpenProjArgs(Articy.Api.OpenProjectArgs):
         self.ForceProjectFolder = True
         self.ScmUsername = user
         self.ScmPassword = userpass
-        self.OpenExclusively = True
+        self.OpenExclusively = False
 
 
 # string aMessageSource, EntryType aType, string aText
@@ -228,7 +231,8 @@ def getNodeTmpl(node):
                 "D-AWD" : "D_AWD",
                 "D-SWD" : "D_SWD",
                 "C-CUT" : "C_CUT",
-                "C-SEG" : "C_SEG"
+                "C-SEG" : "C_SEG",
+                "C-SAC" : "C_SAC"
                 }
     if node["type"] not in typeMap:
         raise RuntimeError("Invalid node type {}".format(node["type"]))
@@ -282,8 +286,9 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
         articyApi.set_pin_expressions(articyObj, instrPrm["condition"], instrPrm["exit_instruction"])
     elif instrType == "SET":
         articyObj = articyApi.create_instruction(flowFragmentObj, instrPrm["instruction"])
-        
     elif instrType == "HUB":
+        articyObj = articyApi.create_hub(flowFragmentObj, instrPrm["hub_name"])
+    elif instrType == "GENERIC_HUB":
         articyObj = articyApi.create_hub(flowFragmentObj, instrPrm["hub_name"])
     elif instrType == "IF":
         articyObj = articyApi.create_condition(flowFragmentObj, instrPrm["eval_condition"])
@@ -492,7 +497,7 @@ def main():
     _eval_parser_log_arguments(args)
     
     if not os.path.isfile(args.intput_file):
-        raise RuntimeError("Invalid input file {args.intput_file} given. Path does not exist.".format(args.intput_file))
+        raise RuntimeError("Invalid input file {} given. Path does not exist.".format(args.intput_file))
     
     projectToOpenName = "api_test_proj"
 
