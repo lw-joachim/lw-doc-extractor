@@ -11,7 +11,7 @@ DESCR_LINE.-1 : /[^\§\n\r]*/ _NEWLINE
 flags.2 : "FLAGS" _NEWLINE flag_line+ "FLAGS_END" _NEWLINE
 flag_line : VARIABLE "=" VALUE FLAG_DESCR? _NEWLINE
 VALUE : ("true" | "false")
-VARIABLE : /[A-Za-z_.]+/
+VARIABLE : /[A-Za-z_.0-9]+/
 FLAG_DESCR : "(" /[^\)]+/ ")"
 
 // sequence defn
