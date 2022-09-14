@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 NODE_TITLE_MATCHER = re.compile("[^{]+{([^}])}")
 
+VAR_NM_MATCHER = re.compile("[a-zA-Z_][a-zA-Z_0-9\.]*")
+
 def get_dialog_line_id(enityName, menuText, lineText):
     
     
@@ -85,7 +87,7 @@ def auto_link_hub(nodeId, sequenceDict, currentHub, parentHub, allNodesWithOutgo
 # creates new sequences for instructions for hub, dialog choide and if and
 # replaces instructions with references
 def flatten_sequences(sequenceIds, nodeDefnDict):
-    complexStatements = ["CHOICE_DIALOG", "IF", "HUB"]
+    complexStatements = ["CHOICE_DIALOG", "IF", "HUB", "SHAC_CHOICE"]
 
     flatSequences = collections.OrderedDict()
     nodeId = nodeDefnDict['id']
@@ -149,15 +151,14 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                         cpyDict["choices"] = choices
                         flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
                     elif instType == "SHAC_CHOICE":
-                        
-                        flatSequences[seqId].append(["HUB", {"choices" : [], "original_sequence" : None}])
+                        print(seqId)
+                        flatSequences[seqId].append(["GENERIC_HUB", {"choices" : [], "original_sequence" : None}])
                         for cCount, choice in enumerate(inst[1]):
                             choiceSeqId = f"{seqId}~{cCount}~shacchoice"
-                            choices.append({"sequence_ref": choiceSeqId})
+                            flatSequences[seqId][-1][1]["choices"].append({"sequence_ref": choiceSeqId})
                             addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : None, "exit_instruction": None, "event_id" : choice["event_id"]})
                             flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
                             seqPos[choiceSeqId] = (len(seqPos), 1)
-                            flatSequences[seqId][-1][1]["choices"] = choices
                         
                     elif instType == "IF":
                         choiceSeqIdTrue = f"{seqId}~true"
@@ -314,6 +315,13 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
                         instrPrms = {"hub_name" : f"{nodeId}_HUB"}
                         if instrPrmDict["original_sequence"]:
                             seqenceToNodeIntId[instrPrmDict["original_sequence"]] = internal_id
+                        intrPosAddX = 2
+                    elif instType == "GENERIC_HUB":
+                        for c in instrPrmDict["choices"]:
+                            jumpsToProcess.append((internal_id, 0, c["sequence_ref"]))
+                            sequenceStartPos[c["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
+                            seqPosY += 1
+                        instrPrms = {"hub_name" : f"{internal_id}_HUB"}
                         intrPosAddX = 2
                     elif instType == "NODE_REF":
                         if instrPrmDict["id"] not in allNodeIds:
@@ -473,8 +481,7 @@ def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChi
     return checkInParents(referenceStr, nodeId, parentNode["parent"], nodeIdToProcDict, nodeIdToChildIdsDict)
         
 
-def checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
-    
+def _checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
     nodeIdToProcDict = {}
     for n in processNodesList:
         nodeIdToProcDict[n["id"]] = n
@@ -491,6 +498,73 @@ def checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
     if errCnt > 0:
         raise RuntimeError(f"There are {errCnt} external reference errors")
     
+def _getCharacterList(nodesList):
+    characterSet = set()
+    for n in nodesList:
+        for instr in n["internal_content"]:
+            if instr["instruction_type"] == "DIALOG_LINE":
+                characterSet.add(instr["parameters"]["entity_name"])
+    return list(characterSet)
+
+def _getNodeIdToVariableList(nodesList):
+    variableDict = {}
+    varSet = set()
+    for n in nodesList:
+        if n["variables"] is not None:
+            variableDict[n["id"]] = n["variables"]
+            
+    return variableDict
+
+def _checkSetVarOk(instrLine, validVariablesSet):
+    allMatches = VAR_NM_MATCHER.findall(instrLine)
+    allMatches = [m for m in allMatches if m != "true" and m != "false"]
+    if len(allMatches) == 0:
+        #logger.warning("No matches")
+        return False
+    
+    for m in allMatches:
+        if m not in validVariablesSet:
+            #logger.warning(f"No match for {m}")
+            return False
+        
+    return True
+    
+
+def _checkCondVarOk(condLine, validVariablesSet):
+    return _checkSetVarOk(condLine, validVariablesSet)
+
+def _validateVariables(variableDict, nodesList):
+    validVariablesSet = set()
+    
+    for vSetNm, vSetVarList in variableDict.items():
+        for varDict in vSetVarList:
+            t = f"{vSetNm}.{varDict['variable_name']}"
+            #print(t)
+            validVariablesSet.add(t)
+    notOkCont = 0
+    for n in nodesList:
+        for instr in n["internal_content"]:
+            if "condition" in instr["parameters"] and instr["parameters"]["condition"]:
+                if not _checkCondVarOk(instr["parameters"]["condition"], validVariablesSet):
+                    logger.warning(f"Condition '{instr['parameters']['condition']}' not ok")
+                    notOkCont += 1
+            if "exit_instruction" in instr["parameters"] and instr["parameters"]["exit_instruction"]:
+                if not _checkSetVarOk(instr["parameters"]["exit_instruction"], validVariablesSet):
+                    logger.warning(f"Exit instruction '{instr['parameters']['exit_instruction']}' not ok")
+                    notOkCont += 1
+                    
+            if "instruction" in instr["parameters"] and instr["parameters"]["instruction"]:
+                if not _checkSetVarOk(instr["parameters"]["instruction"], validVariablesSet):
+                    logger.warning(f"Set instruction '{instr['parameters']['instruction']}' not ok")
+                    notOkCont += 1
+            
+            if "eval_condition" in instr["parameters"] and instr["parameters"]["eval_condition"]:
+                if not _checkCondVarOk(instr["parameters"]["eval_condition"], validVariablesSet):
+                    logger.warning(f"Eval condition '{instr['parameters']['eval_condition']}' not ok")
+                    notOkCont += 1
+                    
+    if notOkCont > 0:
+        raise RuntimeError(f"There were {notOkCont} errors with logic statements")
 
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
@@ -527,10 +601,17 @@ def compile_story(ast):
         resDict["nodes"].append(nodeDict)
     
     logger.info("Checking if external references are valid for all nodes")
-    checkExternalReferences(resDict["nodes"], nodeIdToChildIdsDict)
+    _checkExternalReferences(resDict["nodes"], nodeIdToChildIdsDict)
     logger.info("Checking if external references complete")
-    logger.info("Commpilation complete")
-        
+    logger.info("Getting all characters")
+    resDict["characters"] = _getCharacterList(resDict["nodes"])
+    resDict["characters"].sort()
+    logger.info("Getting character list complete")
+    logger.info("Getting variable list")
+    resDict["variables"] = _getNodeIdToVariableList(ast["nodes"])
+    logger.info("Getting variable list complete")
+    _validateVariables(resDict["variables"], resDict["nodes"])
+    logger.info("Validating variables complete")
     return resDict
     
     

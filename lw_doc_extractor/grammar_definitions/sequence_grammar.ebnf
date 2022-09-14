@@ -3,7 +3,7 @@ sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statement
 inner_sequence: (inner_statement | simple_dialog_line | jump_statements)+
 
 // shac
-shac_statement_block :  "-" "SHAC" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
+shac_statement_block :  "-" "SHAC_CHOICE" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
 shac_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
 
 

@@ -41,8 +41,8 @@ def run_populator_main():
     sysargs = sys.argv[1:]
     
 
-def _run_populator(ironPythonExePath, compilerOutputInputFile, verbosityFlag):
-    os.system(f'start cmd /k "{ironPythonExePath}" "{compilerOutputInputFile} -vv')
+def _run_populator(compilerOutputInputFile, verbosityFlag, ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170):
+    os.system(f'start cmd /k "{ironPythonExePath}" "{scriptPath}" {verbosityFlag} -o "{compilerOutputInputFile}" --server {server} --server_port {serverPort}')
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)

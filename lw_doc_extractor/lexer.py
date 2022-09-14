@@ -145,7 +145,7 @@ class StatementTransformer(lark.Transformer):
         return returnDict
     
     def shac_statement_block(self, items):
-        return "SHAC", items
+        return "SHAC_CHOICE", items
     
     def hub_choice(self, items):
         returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None, "event_id" : None}
@@ -219,6 +219,18 @@ class NodeTransformer(lark.Transformer):
     def __init__(self, nodeDict):
         self.nodeDict = nodeDict
         super().__init__() 
+        
+    # def flags(self, items):
+    #     print("=!!=")
+    #     print(items)
+    #     print("=!!=")
+    #     return items
+    
+    def var_line(self, items):
+        retDict = {"variable_name" : items[0].value, "variable_default_value" : items[1].value, "description" : None, "variable_type" : "bool"}
+        if len(items) == 3:
+            retDict["description"] = items[2].value.strip("(").strip(")")
+        return retDict
     
     def node_body(self, items):
         nodeDict = self.nodeDict
@@ -238,10 +250,8 @@ class NodeTransformer(lark.Transformer):
                     nodeDict["description"] = item.children[0].value.strip()
                 elif item.data == "description_block":
                     nodeDict["description"] = "\n".join([d.value.strip() for d in item.children])
-                elif item.data == "flags":
-                    print("=!=")
-                    print(item.children)
-                    print("=!=")
+                elif item.data == "variables":
+                    nodeDict["variables"] = item.children
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_body")
             else:
@@ -261,7 +271,7 @@ class DocTransformer(lark.Transformer):
     #             nodeDict["image"] =item.children[0].value
 
     def node_definition(self, items):
-        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "flags" : None,
+        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "variables" : None,
                     "start_sequence" : None, "start_sequence_lines" : None,
                     "referenced_sequences": collections.OrderedDict(),
                     "referenced_sequences_lines" : collections.OrderedDict(),
