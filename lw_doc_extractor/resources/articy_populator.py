@@ -225,8 +225,9 @@ def _eval_parser_log_arguments(args):
         logging.basicConfig(level=logging.WARN, format=msgFormat, style="{")
         
 def getNodeTmpl(node):
-    typeMap = { "Chapter" : "Chapter",
-                "Section" : "Section",
+    typeMap = { "Chapter"    : "Chapter",
+                "Section"    : "Section",
+                "SubSection" : "SubSection",
                 "D-EAV" : "D_EAV",
                 "D-DEF" : "D_DEF",
                 "D-NPC" : "D_NPC",

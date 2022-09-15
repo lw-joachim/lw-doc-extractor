@@ -59,12 +59,27 @@ def get_processing_order(currNodeId, nodeIdToChildIdsDict):
     return ret
 
 # rules for automatically creating a link to a hub are
-#  - if last item in sequence is not a jump, choice, hub, if, the_end or a node ref
-#  - then if this node in the sequence it is embeded in is not last in sequence create a return
+#  - if last item in sequence is not a jump, choice, hub, if, shac, the_end or a node ref
+#  - then if this node, in the sequence it is embedded in, is not the last instruction in the sequence, then create a return
 #  - if not then link to the current nodes hub
-#  - if that doesnt exist then link to the hub in the parent
+#  - if that doesnt exist then link to the hub in the parent or if parent is subsection then to the hub of the parent of subsection
 #  - if that doesnt exist raise an error
-def auto_link_hub(nodeId, sequenceDict, currentHub, parentHub, allNodesWithOutgoingLinks):
+def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, allNodesWithOutgoingLinks):
+    parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
+    
+    currentHub = _get_hub_id(nodeToDefnDict[nodeId])
+    parentHub = None
+    if parentId:
+        parentWithHubId = None
+        if nodeToDefnDict[parentId]["node_type"] == "SubSection":
+            parentWithHubId = nodeIdToParentIdDict[parentId] if parentId in nodeIdToParentIdDict else None
+        else:
+            parentWithHubId = parentId
+        
+        if parentWithHubId:
+            parentHub = _get_hub_id(nodeToDefnDict[parentWithHubId])
+    
+    
     for seqId in sequenceDict:
         if len(sequenceDict[seqId]) == 0:
             raise RuntimeError(f"Cannot fix sequence {seqId} as it is empty.")
@@ -202,9 +217,8 @@ def _collapse_links(sequences, allNodeIds):
     return retDict
 
 
-def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithOutlinksTracker, allNodeIds):
-    nodeId = nodeDefnDict["id"]
-    
+def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
+    nodeDefnDict = nodeIdToDefnDict[nodeId]
     # array to keep track of nodes that have been referenced to determine which have not
     nodesReferenced = []
     
@@ -225,7 +239,7 @@ def process_node(nodeDefnDict, parentId, childIds, parentHub, embedSequenceWithO
         embedSequenceWithOutlinksTracker.update(_get_all_nodes_with_outgoing_links_in_sequences(flattenedSequences.values()))
         
         # inplace
-        auto_link_hub(nodeId, flattenedSequences, _get_hub_id(nodeDefnDict), parentHub, embedSequenceWithOutlinksTracker)
+        auto_link_hub(nodeId, flattenedSequences, nodeIdToDefnDict, nodeIdToParentIdDict, embedSequenceWithOutlinksTracker)
         
         
         instructions = []
@@ -511,20 +525,20 @@ def _getNodeIdToVariableList(nodesList):
     varSet = set()
     for n in nodesList:
         #if n["variables"] is not None:
-        variableDict[n["id"]] = n["variables"]
-            
+        variableDict[n["id"].replace("-", "_")] = n["variables"]
+    #print(json.dumps(variableDict, indent=2))
     return variableDict
 
 def _checkSetVarOk(instrLine, validVariablesSet):
     allMatches = VAR_NM_MATCHER.findall(instrLine)
     allMatches = [m for m in allMatches if m != "true" and m != "false"]
     if len(allMatches) == 0:
-        #logger.warning("No matches")
+        logger.warning("No matches for variables in line")
         return False
     
     for m in allMatches:
         if m not in validVariablesSet:
-            #logger.warning(f"No match for {m}")
+            logger.warning("No match for {} in line".format(m))
             return False
         
     return True
@@ -574,6 +588,7 @@ def compile_story(ast):
     chapterNodeId = [n["id"] for n in ast["nodes"] if n["node_type"] == "Chapter"][0]
     logger.debug(f"Chapter node id is {chapterNodeId}")
     nodeIdToParentIdDict, nodeIdToChildIdsDict,  = build_node_hierarchy(chapterNodeId, nodeToDefnDict)
+    
     # print(json.dumps(nodeIdToParentIdDict, indent=2))
     # print(json.dumps(nodeIdToChildIdsDict, indent=2))
     
@@ -596,10 +611,7 @@ def compile_story(ast):
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
         childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
         logger.debug(f"Parent: {parentId}, children: {childIds}")
-        parentHub = None
-        if parentId:
-            parentHub = _get_hub_id(nodeToDefnDict[parentId])
-        nodeDict = process_node(nodeToDefnDict[nodeId], parentId, childIds, parentHub, embedSequenceWithOutlinksTracker, allNodeIds)
+        nodeDict = process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
         resDict["nodes"].append(nodeDict)
     
     logger.info("Checking if external references are valid for all nodes")

@@ -1,12 +1,14 @@
 start : _NEWLINE? node_definition+
 
-node_definition : "*" node_type ID _NEWLINE node_lines
+node_definition : "*" node_type ID node_alias? _NEWLINE node_lines
 
 node_type : "["? /[A-Za-z\-]+/ "]"?
 
 node_lines : (_non_node_lines | _NEWLINE)+
 
 _non_node_lines.9 : /[^\*\n\r].*/ _NEWLINE
+
+node_alias : "[" /[a-zA-Z0-9\-_]+/ "]"
 
 ID : /[A-Za-z0-9\-_]+/
 

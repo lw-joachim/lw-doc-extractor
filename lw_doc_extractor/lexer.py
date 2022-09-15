@@ -276,6 +276,7 @@ class DocTransformer(lark.Transformer):
                     "referenced_sequences": collections.OrderedDict(),
                     "referenced_sequences_lines" : collections.OrderedDict(),
                     "node_lines" : None}
+        alias = None
         for item in items:
             # print("=============")
             # print(type(item))
@@ -289,11 +290,14 @@ class DocTransformer(lark.Transformer):
                     nodeDict["node_type"] = item.children[0].value.strip()
                 elif item.data == "node_lines":
                     nodeDict["node_lines"] = [c.value for c in item.children]
+                elif item.data == "node_alias":
+                    alias = item.children[0].value
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_definition")
             else:
                 raise RuntimeError(f"Unexpected type in node_definition {item}")
-        #print(nodeDict["id"])
+        if alias is not None:
+            nodeDict["id"] = alias
         return nodeDict
     
 def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
