@@ -510,8 +510,8 @@ def _getNodeIdToVariableList(nodesList):
     variableDict = {}
     varSet = set()
     for n in nodesList:
-        if n["variables"] is not None:
-            variableDict[n["id"]] = n["variables"]
+        #if n["variables"] is not None:
+        variableDict[n["id"]] = n["variables"]
             
     return variableDict
 
@@ -537,6 +537,8 @@ def _validateVariables(variableDict, nodesList):
     validVariablesSet = set()
     
     for vSetNm, vSetVarList in variableDict.items():
+        if vSetVarList is None:
+            continue
         for varDict in vSetVarList:
             t = f"{vSetNm}.{varDict['variable_name']}"
             #print(t)

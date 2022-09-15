@@ -7,7 +7,7 @@ Created on 19 Jul 2022
 
 #
 # C:\tmp\rt\2022-05-25>"C:\Program Files\IronPython 2.7\ipy.exe" test.py
-# C:\git\lw-doc-extractor\test_files> "C:\Program Files\IronPython 2.7\ipy.exe" ..\lw_doc_extractor\resources\articy_populator.py  comp_out.json --auth_file mycred
+# C:\git\lw-doc-extractor\test_files> "C:\Program Files\IronPython 2.7\ipy.exe" ..\lw_doc_extractor\resources\articy_populator.py --auth_file mycred comp_output.json 
 
 import pdb
 import sys, os, glob
@@ -33,7 +33,7 @@ except:
 
 
 #_dirPath = os.path.dirname(__file__)
-_dirPath = r"C:\soft\articy_api"
+_dirPath = r"C:\soft\articy_draft_API"
 
 pathsToAdd = [os.path.join(_dirPath, sp) for sp in [r"bin\x64", r"bin\x64\SharpSVN_1_9", r"bin\x64\SharpSVN_1_8", r"bin\x64\SharpSVN_1_7", r"bin\x64\en-US"]]
 
@@ -82,7 +82,7 @@ class ArticyApiWrapper:
     
     def __init__(self, session):
         self.session = session
-        self.int_char_dict = {n.upper(): obj for n, obj in self.get_character_name_to_obj_dict().items()}
+        self.int_char_dict = self.get_character_name_to_obj_dict() # {n.upper(): obj for n, obj in self.get_character_name_to_obj_dict().items()}
         self.linksAlreadyCreatedSet = set()
         logger.info("Entities: {}".format(self.int_char_dict))
 
@@ -210,7 +210,9 @@ class ArticyApiWrapper:
     def get_character_name_to_obj_dict(self):
         entFolder = self.session.GetSystemFolder(Articy.Api.SystemFolderNames.Entities)
         return self._get_char_int(entFolder)
-
+    
+    def create_entity(self, parent_folder, character_name):
+        self.session.CreateEntity(parent_folder, character_name)
 
 def _eval_parser_log_arguments(args):
     msgFormat='%(asctime)s %(name)s %(levelname)s:  %(message)s'
@@ -481,7 +483,104 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
         nodeIdToTargetToInternalId[nodeId] = node["target_to_internal_id"]
     
     create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject)
+
+def create_missing_characters(articyApi, session, characterList):
+    existCharacterDict = articyApi.get_character_name_to_obj_dict()
     
+    charsToCreate = [c for c in characterList if c not in existCharacterDict]
+    
+    if len(charsToCreate) > 0:
+        endFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Entities)
+        
+        session.ClaimPartition( endFolder.GetPartitionId() )
+        
+        for c in charsToCreate:
+            logger.debug("Creating entity {}".format(c))
+            articyApi.create_entity(endFolder, c)
+            # f1 = articyApi.create_flow_fragment(sysFolder, "Top new flow fragment" )
+    logger.info("Created {} entities".format(len(charsToCreate)))
+
+
+def check_delete_create_variables(session, variables):
+    
+    varFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.GlobalVariables)
+    session.ClaimPartition( varFolder.GetPartitionId() )
+   
+    children = varFolder.GetChildren()
+    
+    # for c in children:
+    #     for cc in c.GetChildren():
+    #         if str(cc) == "Test1":
+    #             print(cc)
+    #             print(cc["DefaultValue"])
+    #             print(cc["Description"])
+    #             session.DeleteObject(cc)
+    #             cc2 = session.CreateGlobalVariable(c, "Test2", True, "NewDescr")
+    #             cc2["Description"] = "bla bla"
+    #             break
+    # return
+    
+    varSetsToSyncToObj = {}
+    for c in children:
+        variableSetNm = str(c)
+        if variableSetNm in variables:
+            if variables[variableSetNm] == None:
+                logger.warning("Deleting unused variable set {}".format(variableSetNm))
+                session.DeleteObject(c)
+            else:
+                varSetsToSyncToObj[variableSetNm] = c
+        else:
+            logger.debug("Ignoring variable set {}".format(variableSetNm))
+    
+    for varSetNm, varDictList in variables.items():
+        if varDictList == None:
+            continue
+        
+        if varSetNm in varSetsToSyncToObj:
+            logger.info("Syncing variable set {}".format(varSetNm))
+            varSetRef = varSetsToSyncToObj[varSetNm]
+        else:
+            logger.info("Creating variable set {}".format(varSetNm))
+            varSetRef = session.CreateVariableSet(varSetNm)
+        
+        childRefDict = {str(cc): cc for cc in varSetRef.GetChildren()}
+        
+        varsUsed = []
+        for varDict in varDictList:
+            print(varDict)
+            varNm    = varDict["variable_name"]
+            varDef   = varDict["variable_default_value"]
+            if varDef == "false":
+                varDef = False
+            varDescr = varDict["description"]
+            varType  = varDict["variable_type"]
+            if varType != "bool":
+                raise RuntimeError("Only bools supported at the moment")
+            vRef = None
+            if varNm in childRefDict:
+                if childRefDict[varNm]["DefaultValue"] == varDef:
+                    vRef = childRefDict[varNm]
+                else:
+                    logger.info("Default value for {}.{} does not match. Deleting & creating new".format(varSetNm, varNm))
+                    session.DeleteObject(childRefDict[varNm])
+            if not vRef:
+                logger.info("Creating variable {}.{}".format(varSetNm, varNm))
+                vRef = session.CreateGlobalVariable(varSetRef, varNm, varDef, varDescr)
+            
+            vRef["Description"] = varDescr
+            varsUsed.append(varNm)
+        
+        for cc in varSetRef.GetChildren():
+            varNm = str(cc)
+            if varNm not in varsUsed:
+                logger.info("Deleting variable {}.{}".format(varSetNm, varNm))
+                session.DeleteObject(cc)
+    
+    # varSet = session.GetVariableSetByName("LevisFeast")
+    # if varSet:
+    #     logger.info("Var found: "+ str(varSet))
+    # else:
+    #     logger.info("Var not found")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -552,21 +651,19 @@ def main():
             
             articyApi = ArticyApiWrapper(session)
             
+            logger.info("Checking and creating any missing characters")
+            create_missing_characters(articyApi, session, sourceObj["characters"])
+            
+            logger.info("Checking, deleting and creating any missing variables")
+            check_delete_create_variables(session, sourceObj["variables"])
+            
             sysFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Flow)
             
             session.ClaimPartition( sysFolder.GetPartitionId() )
             f1 = articyApi.create_flow_fragment(sysFolder, "Top new flow fragment" )
-            
-            # inpPins = f1.GetInputPins()
-            # inpPins[0]["Expression"] = "true == true"
-            # outPins = f1.GetOutputPins()
-            # outPins[0]["Expression"] = "false == false"
-            # print(inpPins[0].GetAvailableProperties())
-            
             create_nodes_internals(articyApi, f1, sourceObj["nodes"])
             
-            
-            # characterDict = get_character_name_to_obj_dict(session)
+            # 
             # logger.info("Character list: {}".format(characterDict.keys()))
     except:
         logger.info("Error occurred. Stacktrace: ", exc_info=True )
