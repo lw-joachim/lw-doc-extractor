@@ -613,8 +613,8 @@ def main():
             lines = fh.readlines()
         user, userpass = lines[0].strip(), lines[1].strip()
     else:
-        user = input("Enter your articy username:").strip()
-        userpass = input("Enter your articy password:").strip()
+        user = raw_input("Enter your articy username:").strip()
+        userpass = raw_input("Enter your articy password:").strip()
     #print("'{}' '{}'".format( user, userpass))
     session.Login(user, userpass)
     
