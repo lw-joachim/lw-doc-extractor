@@ -14,6 +14,7 @@ import sys, os, glob
 import inspect
 import json
 import argparse
+import datetime
 
 import logging
 import uuid
@@ -31,42 +32,48 @@ try:
 except:
     logger.exception("Error importing .net dependencies of articy populator")
 
+Articy = None
 
-#_dirPath = os.path.dirname(__file__)
-_dirPath = r"C:\soft\articy_draft_API"
-
-pathsToAdd = [os.path.join(_dirPath, sp) for sp in [r"bin\x64", r"bin\x64\SharpSVN_1_9", r"bin\x64\SharpSVN_1_8", r"bin\x64\SharpSVN_1_7", r"bin\x64\en-US"]]
-
-origDir= os.getcwd()
-for p in pathsToAdd:
-    sys.path.append(p)
-    os.chdir(p)
-    for f in glob.glob("*.dll"):
-        try:
-            clr.AddReference(f)
-        except:
-            print("Could not import "+p+"\\"+f)
-    os.chdir(origDir)
-
-try:
-    from  Articy.Api import ArticyApi
-    import Articy
-except:
-    logger.exception("Error importing dependencies of articy populator")
-
-
-class MyOpenProjArgs(Articy.Api.OpenProjectArgs):
-    def __init__(self, ProjGuid, user, userpass):
-        self.ProjGuid = ProjGuid
-        self.ProjectGuid = ProjGuid
-        self.ProjectFolder = r"C:\work\articy_projects\api_test_proj_cli"
-        self.CleanCheckout = True
-        self.ForceProjectFolder = True
-        self.ScmUsername = user
-        self.ScmPassword = userpass
-        self.OpenExclusively = False
-
-
+def setupArticyApi(articyLibDirPath):
+    global Articy
+    _dirPath = articyLibDirPath
+    
+    
+    pathsToAdd = [os.path.join(_dirPath, sp) for sp in [r"bin\x64", r"bin\x64\SharpSVN_1_9", r"bin\x64\SharpSVN_1_8", r"bin\x64\SharpSVN_1_7", r"bin\x64\en-US"]]
+    
+    origDir= os.getcwd()
+    for p in pathsToAdd:
+        sys.path.append(p)
+        os.chdir(p)
+        for f in glob.glob("*.dll"):
+            try:
+                clr.AddReference(f)
+            except:
+                print("Could not import "+p+"\\"+f)
+        os.chdir(origDir)
+    
+    try:
+        from  Articy.Api import ArticyApi
+        import Articy as ArticyAPIT
+        Articy = ArticyAPIT
+    except:
+        logger.exception("Error importing dependencies of articy populator")
+        return
+    
+    
+    class MyOpenProjArgs(Articy.Api.OpenProjectArgs):
+        def __init__(self, ProjGuid, user, userpass):
+            self.ProjGuid = ProjGuid
+            self.ProjectGuid = ProjGuid
+            self.ProjectFolder = r"C:\work\articy_projects\api_test_proj_cli"
+            self.CleanCheckout = True
+            self.ForceProjectFolder = True
+            self.ScmUsername = user
+            self.ScmPassword = userpass
+            self.OpenExclusively = False
+            
+    return ArticyApi, MyOpenProjArgs
+    
 # string aMessageSource, EntryType aType, string aText
 class MyLogger:
     def mylog(*args, **kwargs):
@@ -77,14 +84,14 @@ class MyLogger:
             articyLogger.info(msgStr)
         else:
             articyLogger.warning(msgStr)
-            
+           
 class ArticyApiWrapper:
     
     def __init__(self, session):
         self.session = session
         self.int_char_dict = self.get_character_name_to_obj_dict() # {n.upper(): obj for n, obj in self.get_character_name_to_obj_dict().items()}
         self.linksAlreadyCreatedSet = set()
-        logger.info("Entities: {}".format(self.int_char_dict))
+        logger.info("Entities: {}".format(self.int_char_dict.keys()))
 
     def create_flow_fragment(self, parentObj, dispName, template=None):
         logger.debug("Creating flow fragment {} with template {}".format(dispName, template))
@@ -213,6 +220,8 @@ class ArticyApiWrapper:
     
     def create_entity(self, parent_folder, character_name):
         self.session.CreateEntity(parent_folder, character_name)
+            
+    
 
 def _eval_parser_log_arguments(args):
     msgFormat='%(asctime)s %(name)s %(levelname)s:  %(message)s'
@@ -584,13 +593,16 @@ def check_delete_create_variables(session, variables):
     #     logger.info("Var not found")
 
 def main():
+    global ArticyApi
     parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("intput_file", help="The input json file")
     parser.add_argument("--server", default="server0185.articy.com", help="Server URL")
     parser.add_argument("--server_port", type=int, default=13170, help="Server Port")
+    parser.add_argument("--project", default="api_test_proj", help="The name of the project to import to")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable info logging")
     parser.add_argument("-vv", "--extra_verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("--auth_file", help="File with username on first line and password on second line")
+    parser.add_argument("--articy_api_lib", default=r"C:\soft\articy_draft_API", help="Path to articy api installation")
     
     
     args = parser.parse_args()
@@ -599,9 +611,11 @@ def main():
     if not os.path.isfile(args.intput_file):
         raise RuntimeError("Invalid input file {} given. Path does not exist.".format(args.intput_file))
     
-    projectToOpenName = "api_test_proj"
+    projectToOpenName = args.project
+    
+    ArticyApi, MyOpenProjArgs = setupArticyApi(args.articy_api_lib)
 
-    ml = MyLogger();
+    ml = MyLogger()
     ArticyApi.Startup(ml.mylog)
     
     session = ArticyApi.CreateSession()
@@ -636,7 +650,6 @@ def main():
             if(proj.DisplayName == projectToOpenName):
                 projToOpen = proj.Id
         
-        
         if(projToOpen):
             logger.debug("Found project to open: {}".format(projToOpen))
             opArts = MyOpenProjArgs(projToOpen, user, userpass)
@@ -652,6 +665,8 @@ def main():
             
             articyApi = ArticyApiWrapper(session)
             
+            return
+            
             logger.info("Checking and creating any missing characters")
             create_missing_characters(articyApi, session, sourceObj["characters"])
             
@@ -661,9 +676,13 @@ def main():
             sysFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Flow)
             
             session.ClaimPartition( sysFolder.GetPartitionId() )
-            f1 = articyApi.create_flow_fragment(sysFolder, "Top new flow fragment" )
+            
+            newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
+
+            f1 = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
             create_nodes_internals(articyApi, f1, sourceObj["nodes"])
             
+            logger.info("Finished populating new node {}".format(newFragmentNm))
             # 
             # logger.info("Character list: {}".format(characterDict.keys()))
     except:

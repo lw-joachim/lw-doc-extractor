@@ -53,7 +53,8 @@ setup(
         'console_scripts': [
             # a list of strings of format:
             # <command> = <package>:<function>
-            'lw-doc-extractor-cli = lw_doc_extractor.main.cli:main'
+            'lw-doc-extractor-cli = lw_doc_extractor.main.cli:main',
+            'lw-aticy-populator-cli = lw_doc_extractor.main.cli:run_populator_main'
             # , ...
         ]
     }

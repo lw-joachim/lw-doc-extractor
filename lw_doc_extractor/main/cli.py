@@ -7,42 +7,56 @@ import os
 import logging
 import k3logging
 import sys
+import subprocess
 
 from lw_doc_extractor import __version__, primitive_doc_parser, doc_parser, story_compiler
 import errno
 import os
 import json
+from argparse import RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
 logger = logging.getLogger(__name__)
 
+_POP_FILE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "resources", "articy_populator.py"))
+
 def run_populator_main():
     
-    parser = argparse.ArgumentParser(description="Actiry Populator"+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__))
-    parser.add_argument("intput_file", help="The input document file")
+    parser = argparse.ArgumentParser(description="Actiry Populator"+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("input_file", help="The input json file")
     parser.add_argument("--server", default="server0185.articy.com", help="Server URL")
     parser.add_argument("--server_port", type=int, default=13170, help="Server Port")
+    parser.add_argument("--project", default="api_test_proj", help="The name of the project to import to")
+    parser.add_argument("--auth_file", help="File with username on first line and password on second line")
+    parser.add_argument("--iron_python", default=r"C:\Program Files\IronPython 2.7\ipy.exe", help="Iron python path. NOTE: Articy.MetaModel.xml needs to have been transferred.")
+    parser.add_argument("--articy_api_lib", default=r"C:\soft\articy_draft_API", help="Path to articy api installation")
     
     k3logging.set_parser_log_arguments(parser)
 
-    parser.add_argument("--auth_file", help="File with username on first line and password on second line")
-    
-    
-    
     args = parser.parse_args()
     
-    # verboseFlag = ""
-    # if(args.verbose):
-    #     verboseFlag = "-v"
-    # if(args.extra_verbose):
-    #     verboseFlag = "-vv"
+    k3logging.eval_parser_log_arguments(args)
+    
+    verboseFlag = ""
+    if(args.verbose):
+        verboseFlag = "-v"
+    if(args.extra_verbose):
+        verboseFlag = "-vv"
         
-    sysargs = sys.argv[1:]
+    _run_populator(args.input_file, args.project, verboseFlag, args.iron_python, args.server,args.server_port, args.auth_file, args.articy_api_lib )
     
 
-def _run_populator(compilerOutputInputFile, verbosityFlag, ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170):
-    os.system(f'start cmd /k "{ironPythonExePath}" "{scriptPath}" {verbosityFlag} -o "{compilerOutputInputFile}" --server {server} --server_port {serverPort}')
+def _run_populator(compilerOutputInputFile, project="api_test_proj", verbosityFlag="-v", ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170, auth_file=None, articy_api_lib=r"C:\soft\articy_draft_API"):
+    authStr = "" if auth_file == None else "--auth_file {auth_file}"
+    #'start cmd "ARTICY POPULATOR" /k \"{ironPythonExePath}\" "{_POP_FILE_PATH}" {verbosityFlag} "{compilerOutputInputFile}" --project "{project}" --server {server} --server_port {serverPort} --project {project} {authStr}'
+    runArgs = ["start", "cmd", "\"ARTICY POPULATOR\"", "/k", ironPythonExePath, _POP_FILE_PATH, verbosityFlag, compilerOutputInputFile, "--project", project, "--server", server, "--server_port", str(serverPort), "--project", project, "--articy_api_lib", articy_api_lib]
+    if auth_file:
+        runArgs.extend(["--auth_file", auth_file])
+    print(runArgs)
+    logger.info("Running cmd: {}".format(' '.join([str(e) for e in runArgs])))
+    subprocess.run(runArgs, shell=True)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
