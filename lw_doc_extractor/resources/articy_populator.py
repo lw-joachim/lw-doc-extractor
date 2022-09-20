@@ -20,7 +20,7 @@ import logging
 import uuid
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
-__version__ = "0.1"
+__version__ = "0.2.0"
 
 logger = logging.getLogger(__name__)
 articyLogger = logging.getLogger("ArticyApi")
