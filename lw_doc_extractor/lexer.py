@@ -227,7 +227,19 @@ class NodeTransformer(lark.Transformer):
     #     return items
     
     def var_line(self, items):
-        retDict = {"variable_name" : items[0].value, "variable_default_value" : items[1].value, "description" : None, "variable_type" : "bool"}
+        itemValStr = items[1].value
+        if itemValStr.lower() == "true":
+            varType = "bool"
+            itemVal = True
+        elif itemValStr.lower() == "false":
+            varType = "bool"
+            itemVal = False
+        elif itemValStr.isdigit():
+            varType = "int"
+            itemVal = int(itemValStr)
+        else:
+            raise RuntimeError(f"Invalid value for variable {items[0].value}: {itemValStr}")
+        retDict = {"variable_name" : items[0].value, "variable_default_value" : itemVal, "description" : None, "variable_type" : varType}
         if len(items) == 3:
             retDict["description"] = items[2].value.strip("(").strip(")")
         return retDict

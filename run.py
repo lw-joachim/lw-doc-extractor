@@ -16,6 +16,12 @@ def prog2():
     with open(r"C:\git\lw-doc-extractor\test_files\debug\lexer_output.json") as fh:
         ast = json.load(fh)
         story_compiler.compile_story(ast)
+        
+def prog3():
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\comp_output.json", "--auth_file", "test_files\mycred"]
+    cli.run_populator_main()
 
 def prog1():
     print(socket.gethostname())
@@ -25,10 +31,11 @@ def prog1():
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGymT.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\ChapterLeviesFeast.docx", "-o", "test_files\comp_output.json"]
         sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\Levi's Feast - ArticyScript.docx", "-o", "test_files\comp_output.json"]
+       
         
         
         
     cli.main()
     
 if __name__ == '__main__':
-    prog1()
+    prog3()

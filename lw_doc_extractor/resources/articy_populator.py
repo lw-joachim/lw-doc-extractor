@@ -91,7 +91,7 @@ class ArticyApiWrapper:
         self.session = session
         self.int_char_dict = self.get_character_name_to_obj_dict() # {n.upper(): obj for n, obj in self.get_character_name_to_obj_dict().items()}
         self.linksAlreadyCreatedSet = set()
-        logger.info("Entities: {}".format(self.int_char_dict.keys()))
+        logger.debug("Entities: {}".format(self.int_char_dict.keys()))
 
     def create_flow_fragment(self, parentObj, dispName, template=None):
         logger.debug("Creating flow fragment {} with template {}".format(dispName, template))
@@ -142,7 +142,7 @@ class ArticyApiWrapper:
         
         linkId = (srcObj.GetTechnicalName(), targetObj.GetTechnicalName(), sourceOutputPinIndex, 0 )
         if linkId in self.linksAlreadyCreatedSet:
-            print("~~~~~~~~~~~~~~~~~~~~~~~~"+str(linkId))
+            #print("~~~~~~~~~~~~~~~~~~~~~~~~"+str(linkId))
             return
         try:
             retObj = self.session.ConnectPins(srcOuputPins[sourceOutputPinIndex], targetInpPins[0])
@@ -220,6 +220,7 @@ class ArticyApiWrapper:
     
     def create_entity(self, parent_folder, character_name):
         self.session.CreateEntity(parent_folder, character_name)
+        self.int_char_dict = self.get_character_name_to_obj_dict()
             
     
 
@@ -320,11 +321,12 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
     if nodeDict["description"]:
         flowFragmentObject.SetText(nodeDict["description"])
     
+    logger.debug("Creating nodes")
     for i, instr in enumerate(nodeDict["internal_content"]):
         articyObj = None
         posX, posY = nodeDict["internal_content_positions"][i]
         if instr["instruction_type"] == "NODE_REF":
-            print(instr)
+            #print(instr)
             refId = instr["parameters"]["id"]
             refNode = nodeIdToNodeDefn[refId]
             if refNode["type"].startswith("D-"):
@@ -339,6 +341,8 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
         articyObj.SetFlowPosition(*get_mapped_position(posX, posY))
         if instr["external_id"]:
             articyObj.SetExternalId(instr["external_id"])
+    
+    logger.info("Created {} internal nodes".format(len(nodeDict["internal_content"])))
             
     for int_link in nodeDict["internal_links"]:
         linkSrc, outPin, linkTarget = int_link
@@ -350,6 +354,9 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
             articyApi.create_internal_return_connection(internalIdToArticyObj[linkSrc], flowFragmentObject, parentObjOutputPinIdx=outPin)
         else:
             articyApi.create_connection(internalIdToArticyObj[linkSrc], internalIdToArticyObj[linkTarget], outPin)
+            
+    logger.info("Created {} internal links".format(len(nodeDict["internal_links"])))
+    
     return internalIdToArticyObj, nodeIdToObject
 
 def get_node_hierarchy(nodeIdToParentNodeId, childNode, parentNode=None):
@@ -380,9 +387,9 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
             targetIdToNode[tarId] = nodeId
     
     
-    print("============")
+    #print("============")
     #print(internalIdToNode)
-    print(json.dumps(targetIdToNode, indent=2))
+    #print(json.dumps(targetIdToNode, indent=2))
     
     nodeIdToTargetToPinIdx = {}
     
@@ -398,8 +405,8 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
             targetToPinIdxDict[target] = len(targetToPinIdxDict)
         nodeIdToTargetToPinIdx[nodeId] = targetToPinIdxDict
     
-    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    print(nodeIdToTargetToPinIdx)
+    # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    # print(nodeIdToTargetToPinIdx)
     
     for node in nodesList:
         nodeId = node["id"]
@@ -421,9 +428,9 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
             
             nodeHierarchy = get_node_hierarchy(nodeIdToParentNodeId, srcNodeId, targetNode)
             
-            print("============")
-            print((srcInternalId, srcPin, target))
-            print(nodeHierarchy)
+            # print("============")
+            # print((srcInternalId, srcPin, target))
+            # print(nodeHierarchy)
             lastObj = None
             lastPinIdx = None
             for hierNode in nodeHierarchy:
@@ -457,8 +464,8 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
                     lastPinIdx = tarPinIdx
                 
             
-    print(json.dumps(list(articyApi.linksAlreadyCreatedSet)))
-    print(json.dumps(nodeIdToTargetToPinIdx, indent=2))
+    # print(json.dumps(list(articyApi.linksAlreadyCreatedSet)))
+    # print(json.dumps(nodeIdToTargetToPinIdx, indent=2))
 
 
 def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
@@ -472,8 +479,8 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
         nodeIdToNodeDefn[node["id"]] = node
 
     for node in nodesList:
-        
         nodeId = node["id"]
+        logger.info("Processing node {}".format(nodeId))
         if node["type"] == "Chapter":
             articyObj = articyApi.create_flow_fragment(flowFragmentObj, nodeId, template="Chapter")
             globalNodeIdToObject[nodeId] = articyObj
@@ -491,8 +498,11 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
             globalNodeIdToObject.update(nodeIdToObject)
             
         nodeIdToTargetToInternalId[nodeId] = node["target_to_internal_id"]
+        logger.info("Processing node {} complete".format(nodeId))
     
+    logger.info("Creating external links")
     create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTargetToInternalId, nodeIdToInternalIdToArticyObj, globalNodeIdToObject)
+    logger.info("Creating external links complete")
 
 def create_missing_characters(articyApi, session, characterList):
     existCharacterDict = articyApi.get_character_name_to_obj_dict()
@@ -557,21 +567,26 @@ def check_delete_create_variables(session, variables):
         
         varsUsed = []
         for varDict in varDictList:
-            print(varDict)
             varNm    = varDict["variable_name"]
             varDef   = varDict["variable_default_value"]
-            if varDef == "false":
-                varDef = False
             varDescr = varDict["description"]
             varType  = varDict["variable_type"]
-            if varType != "bool":
-                raise RuntimeError("Only bools supported at the moment")
+            if varType != "bool" and varType != "int":
+                raise RuntimeError("Only bools and ints are supported at the moment")
             vRef = None
             if varNm in childRefDict:
-                if childRefDict[varNm]["DefaultValue"] == varDef:
+                currVal = childRefDict[varNm]["DefaultValue"]
+                # print("====")
+                # print(currVal)
+                # print(type(currVal))
+                # print(varDef)
+                # print(type(varDef))
+                # print(currVal == varDef)
+                # note articy (childRefDict[varNm]["DefaultValue"]) returns string for some reason
+                if currVal == str(varDef):
                     vRef = childRefDict[varNm]
                 else:
-                    logger.info("Default value for {}.{} does not match. Deleting & creating new".format(varSetNm, varNm))
+                    logger.warning("Default value for {}.{} does not match. Deleting & creating new".format(varSetNm, varNm))
                     session.DeleteObject(childRefDict[varNm])
             if not vRef:
                 logger.info("Creating variable {}.{}".format(varSetNm, varNm))
@@ -665,13 +680,12 @@ def main():
             
             articyApi = ArticyApiWrapper(session)
             
-            return
-            
-            logger.info("Checking and creating any missing characters")
+            logger.info("Checking and creating any missing characters (entities)")
             create_missing_characters(articyApi, session, sourceObj["characters"])
-            
+            logger.info("Entity processing done")
             logger.info("Checking, deleting and creating any missing variables")
             check_delete_create_variables(session, sourceObj["variables"])
+            logger.info("Variable processing done")
             
             sysFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Flow)
             
@@ -679,12 +693,10 @@ def main():
             
             newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
 
+            logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
             f1 = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
             create_nodes_internals(articyApi, f1, sourceObj["nodes"])
-            
-            logger.info("Finished populating new node {}".format(newFragmentNm))
-            # 
-            # logger.info("Character list: {}".format(characterDict.keys()))
+            logger.info("Finished creating flow in flow fragment {}".format(newFragmentNm))
     except:
         logger.info("Error occurred. Stacktrace: ", exc_info=True )
         raise
@@ -694,7 +706,7 @@ def main():
         if loggedIn:
             session.Logout()
         ArticyApi.Shutdown()
-    print("Done")
+    print("Import complete")
 
 if __name__ == "__main__":
     main()

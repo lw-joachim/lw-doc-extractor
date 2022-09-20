@@ -166,7 +166,6 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                         cpyDict["choices"] = choices
                         flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
                     elif instType == "SHAC_CHOICE":
-                        print(seqId)
                         flatSequences[seqId].append(["GENERIC_HUB", {"choices" : [], "original_sequence" : None}])
                         for cCount, choice in enumerate(inst[1]):
                             choiceSeqId = f"{seqId}~{cCount}~shacchoice"
