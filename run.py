@@ -38,4 +38,4 @@ def prog1():
     cli.main()
     
 if __name__ == '__main__':
-    prog3()
+    prog1()

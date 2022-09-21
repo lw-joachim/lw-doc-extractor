@@ -21,7 +21,7 @@ internal_jump_statement : ">" REFERENCED_ID _NEWLINE
 external_jump_statement : "►" REFERENCED_ID _NEWLINE
 
 // dialog
-simple_dialog_line.-1 : ENTITY_NAME COMMENT? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
+simple_dialog_line.-2 : ENTITY_NAME COMMENT? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
