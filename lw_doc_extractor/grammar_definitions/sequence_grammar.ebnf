@@ -1,6 +1,6 @@
 
 sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements | hub_statement_block | choice_dialog_statement | if_block | shac_statement_block )+
-inner_sequence: (inner_statement | simple_dialog_line | jump_statements)+
+inner_sequence: (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements)+
 
 // shac
 shac_statement_block :  "-" "SHAC_CHOICE" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
@@ -55,8 +55,7 @@ exit_instruction : "SET" REST_OF_LINE _NEWLINE
 ID : /[A-Za-z0-9\-_]+/
 REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
-ENTITY_NAME.-1 : /[A-Z]+/ /[A-Z]+/? ENTITY_COUNTER?
-ENTITY_COUNTER : /\s*[0-9]+/
+ENTITY_NAME.-1 : /[A-Z][A-Z0-9\ ]{2,}/
 
 SPOKEN_TEXT: /[^\n\r\(]+/
 QUEST_ID : /[^\n\r]+/
