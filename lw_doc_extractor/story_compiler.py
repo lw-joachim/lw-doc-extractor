@@ -605,6 +605,15 @@ def _validateVariables(variableDict, nodesList):
     if notOkCont > 0:
         raise RuntimeError(f"There were {notOkCont} errors with logic statements")
 
+def _parents_in_error_nodes(parentId, nodeIdToParentIdDict, errorSet):
+    if parentId in errorSet:
+        return True
+    
+    if parentId not in nodeIdToParentIdDict:
+        return False
+    
+    return _parents_in_error_nodes(nodeIdToParentIdDict[parentId], nodeIdToParentIdDict, errorSet)
+
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
     #nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
@@ -626,16 +635,26 @@ def compile_story(ast):
 
     embedSequenceWithOutlinksTracker = set()
     
-
+    errNodes = set()
     resDict = {"nodes" : []}
     allNodeIds = list(nodeToDefnDict.keys())
     for nodeId in nodeIdProcessingOrder:
-        logger.info(f"PROCESSING Node {nodeId}")
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
         childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
+        if _parents_in_error_nodes(parentId, nodeIdToParentIdDict, errNodes):
+            logger.info(f"Skipping node {nodeId} due to error in parent")
+            continue
+        logger.info(f"PROCESSING Node {nodeId}")
         logger.debug(f"Parent: {parentId}, children: {childIds}")
-        nodeDict = process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
-        resDict["nodes"].append(nodeDict)
+        try:
+            nodeDict = process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
+            resDict["nodes"].append(nodeDict)
+        except Exception as e:
+            logger.exception(f"Error in node {nodeId}")
+            errNodes.add(nodeId)
+    
+    if len(errNodes) > 0:
+        raise RuntimeError(f"There are {len(errNodes)} nodes with errors. Child nodes may have been skipped")
     
     logger.info("Checking if external references are valid for all nodes")
     _checkExternalReferences(resDict["nodes"], nodeIdToChildIdsDict)

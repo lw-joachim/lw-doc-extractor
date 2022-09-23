@@ -58,6 +58,10 @@ class StatementTransformer(lark.Transformer):
             if type(item) == lark.Token:
                 if item.type == "STATEMENT_DESCRIPTION":
                     resp["description"] = item.value.strip()
+                elif item.type == "ENTITY_NAME":
+                    resp["entity_name"] = item.value.strip().replace(" ", "_")
+                elif item.type == "EVENT_ID":
+                    resp["event_id"] = item.value.strip().replace(" ", "_")
                 else:
                     resp[item.type.lower()] = item.value.strip()
             elif type(item) == lark.Tree:
@@ -132,7 +136,7 @@ class StatementTransformer(lark.Transformer):
                 if item.type == "STATEMENT_DESCRIPTION":
                     returnDict["choice_description"] = item.value.strip()
                 elif item.type == "EVENT_ID":
-                    returnDict["event_id"] = item.value.strip()
+                    returnDict["event_id"] = item.value.strip().replace(" ", "_")
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in shac_choice")
             elif type(item) == lark.Tree:
@@ -154,7 +158,7 @@ class StatementTransformer(lark.Transformer):
                 if item.type == "STATEMENT_DESCRIPTION":
                     returnDict["choice_description"] = item.value.strip()
                 elif item.type == "EVENT_ID":
-                    returnDict["event_id"] = item.value.strip()
+                    returnDict["event_id"] = item.value.strip().replace(" ", "_")
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
             elif type(item) == lark.Tree:
