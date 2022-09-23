@@ -15,9 +15,12 @@ NODE_TITLE_MATCHER = re.compile("[^{]+{([^}])}")
 
 VAR_NM_MATCHER = re.compile("[a-zA-Z_][a-zA-Z_0-9\.]*")
 
+
+# id to an int counter
+_idToOccurenceTracker = {}
+
 def get_dialog_line_id(enityName, menuText, lineText):
-    
-    
+    global _idToOccurenceTracker
     en = enityName.strip() if enityName else ""
     mt = menuText.strip() if menuText else ""
     lt = lineText.strip() if lineText else ""
@@ -31,6 +34,14 @@ def get_dialog_line_id(enityName, menuText, lineText):
     retStr = "{}#{}#{}#{}".format(resHex, en, mt, lineText)
     if len(retStr) > 64:
         retStr = retStr[:64]
+        
+    if retStr in _idToOccurenceTracker:
+        num_occurances = _idToOccurenceTracker[retStr]
+        newRet = retStr + "_" + str(num_occurances)
+        _idToOccurenceTracker[retStr] = num_occurances + 1
+        retStr = newRet
+    else:
+         _idToOccurenceTracker[retStr] = 1
     return  retStr
 
 def build_node_hierarchy(rootNodeId, nodeToDefnDict):
