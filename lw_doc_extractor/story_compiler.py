@@ -15,7 +15,6 @@ NODE_TITLE_MATCHER = re.compile("[^{]+{([^}])}")
 
 VAR_NM_MATCHER = re.compile("[a-zA-Z_][a-zA-Z_0-9\.]*")
 
-
 # id to an int counter
 _idToOccurenceTracker = {}
 
@@ -99,13 +98,13 @@ def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, al
         if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END"]:
             if nodeId in allNodesWithOutgoingLinks:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : nodeId}))
-                logger.info(f"For sequence {seqId} adding internal return jump to {nodeId}")
+                logger.debug(f"For sequence {seqId} adding internal return jump to {nodeId}")
             elif currentHub != None:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : currentHub}))
-                logger.info(f"For sequence {seqId} adding internal jump to {currentHub}")
+                logger.debug(f"For sequence {seqId} adding internal jump to {currentHub}")
             elif parentHub != None:
                 sequenceDict[seqId].append(("EXTERNAL_JUMP", {"referenced_id" : parentHub}))
-                logger.info(f"For sequence {seqId} adding external jump to {parentHub}")
+                logger.debug(f"For sequence {seqId} adding external jump to {parentHub}")
             else:
                 raise RuntimeError(f"Cannot fix sequence {seqId}.")
     
@@ -226,6 +225,62 @@ def _collapse_links(sequences, allNodeIds):
                 retDict[seqId] = _collapse_internal(instrPrmDict["referenced_id"])
     return retDict
 
+def _isInstrTypeAllowed(nodeId, nodeType, currSequence, instrType):
+    
+    allowedEverywhere = ["COMMENT", "IF", "SET", "EXTERNAL_JUMP", "INTERNAL_JUMP"]
+    if instrType in allowedEverywhere:
+        return True
+    
+    if nodeType == "C-SEG":
+        return False
+    
+    if nodeType in ["C-CUT", "C-SAC"]:
+        if instrType == "DIALOG_LINE":
+            return True
+        if instrType == "GENERIC_HUB" and nodeType == "C-SAC":
+            return True
+        return False
+            
+    if nodeType.startswith("D-"):
+        if instrType == "DIALOG_LINE":
+            return True
+        if instrType == "CHOICE_DIALOG":
+            return True
+        return False
+    
+    if instrType == "DIALOG_LINE" or instrType == "CHOICE_DIALOG":
+        return False
+
+    if instrType == "HUB" and nodeType == "SubSection":
+        return False
+    
+    if instrType == "HUB" and nodeType == "Chapter":
+        return False
+    
+    return True
+
+_EMBED_ALLOWED_LIST = ["Chapter", "Section", "SubSection"]
+
+def _check_embeded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
+    for instrDict in instructions:
+        if instrDict["instruction_type"] == "NODE_REF":
+            refNodeId = instrDict["parameters"]["id"]
+            embededType = nodeIdToDefnDict[refNodeId]["node_type"]
+            
+            if nodeIdToParentIdDict[refNodeId] != nodeId:
+                raise RuntimeError(f"Node {refNodeId} is embeded in {nodeId}, but the parent hierarchy is incorrect. Check '_' usage")
+            
+            if nodeType not in _EMBED_ALLOWED_LIST:
+                raise RuntimeError(f"Node {nodeId} embeds node {refNodeId}, but its of node type {nodeType} which cant embed other nodes")
+            
+            if nodeType == "Chapter" and embededType == "SubSection":
+                raise RuntimeError(f"Chapter node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
+                
+            if nodeType == "SubSection" and embededType == "SubSection":
+                raise RuntimeError(f"SubSection node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
+            
+            if nodeType == "SubSection" and embededType == "Section":
+                raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
 
 def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
     nodeDefnDict = nodeIdToDefnDict[nodeId]
@@ -250,7 +305,6 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
         
         # inplace
         auto_link_hub(nodeId, flattenedSequences, nodeIdToDefnDict, nodeIdToParentIdDict, embedSequenceWithOutlinksTracker)
-        
         
         instructions = []
         instructionPos = []
@@ -303,6 +357,9 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                 if shouldBeDone:
                     raise RuntimeError(f"In sequence {seqId} instruction following a jump")
                 shouldBeDone = True
+                
+                if not _isInstrTypeAllowed(nodeId, nodeDefnDict["node_type"], seqId, instType):
+                    raise RuntimeError(f"In sequence {seqId}, instruction type {instType} is not allowed within node type {nodeDefnDict['node_type']}")
                 
                 if instType == "INTERNAL_JUMP":
                     jumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
@@ -446,8 +503,6 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                 instructions.append(instrDict)
                 instructionPos.append((0, seqPosY+1+i))
                 seqPosY += 1
-                
-                
         
         if nodeId in embedSequenceWithOutlinksTracker:
             for srcL, srcOutPin, tarL in externalLinks:
@@ -456,6 +511,8 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                         
         if len(instructions) != len(instructionPos):
             raise RuntimeError("Uneven instruction pos arr len")
+        
+        _check_embeded_nodes(nodeId, nodeDefnDict["node_type"], instructions, nodeIdToDefnDict, nodeIdToParentIdDict)
         
         resDict = { "id": nodeDefnDict["id"],
                     "type": nodeDefnDict["node_type"],
@@ -625,6 +682,32 @@ def _parents_in_error_nodes(parentId, nodeIdToParentIdDict, errorSet):
     
     return _parents_in_error_nodes(nodeIdToParentIdDict[parentId], nodeIdToParentIdDict, errorSet)
 
+
+def _calc_stats(resDict):
+    ret = {}
+    ret["number_characters"] = len(resDict["characters"])
+    
+    numCutLines = 0
+    numCut = 0
+    numDialogLines = 0
+    for n in resDict["nodes"]:
+        isCut = False
+        if n["type"].startswith("C-"):
+            numCut += 1
+            isCut = True
+        for intrDict in n["internal_content"]:
+            if intrDict["instruction_type"] == "DIALOG_LINE":
+                if isCut:
+                    numCutLines += 1
+                else:
+                    numDialogLines += 1
+    
+    ret["number_of_dialog_lines"] = numDialogLines
+    ret["number_of_cutscene_lines"] = numCutLines
+    ret["number_of_lines"] = numDialogLines + numCutLines
+    ret["number_of_cutscene"] = numCut
+    return ret
+
 def compile_story(ast): 
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
     #nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
@@ -655,7 +738,7 @@ def compile_story(ast):
         if _parents_in_error_nodes(parentId, nodeIdToParentIdDict, errNodes):
             logger.info(f"Skipping node {nodeId} due to error in parent")
             continue
-        logger.info(f"PROCESSING Node {nodeId}")
+        logger.info(f"Processing internal logic of node {nodeId}")
         logger.debug(f"Parent: {parentId}, children: {childIds}")
         try:
             nodeDict = process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
@@ -679,6 +762,8 @@ def compile_story(ast):
     logger.info("Getting variable list complete")
     _validateVariables(resDict["variables"], resDict["nodes"])
     logger.info("Validating variables complete")
+    resDict["statistics"] = _calc_stats(resDict)
+    logger.info("Calculating statistics complete")
     return resDict
     
     

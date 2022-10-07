@@ -206,6 +206,9 @@ class StatementTransformer(lark.Transformer):
         return items
     
     def choice_dialog_statement(self, items):
+        if type(items[1]) == lark.Tree:
+            print(items[1])
+            return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[2]}
         return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[1]}
     
     def sequence(self, items):
