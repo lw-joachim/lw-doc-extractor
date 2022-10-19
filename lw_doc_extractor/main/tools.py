@@ -85,37 +85,46 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
         }
     
     restList = [
-             "en-AU-Wavenet-C",
              "en-AU-Wavenet-B",
              "en-AU-Wavenet-D", 
              "en-AU-Neural2-D",
              "en-GB-Wavenet-B",
              "en-GB-Wavenet-D",
-             "en-GB-Neural2-A", 
-             "en-GB-Neural2-D", 
              "en-US-Neural2-A",
-             "en-US-Neural2-F",
              ]
+    
+    maleCharacters = {}
+    
+    mappedSpeakerToVoiceMap = {}
     
     if not os.path.isdir(outputDirectory):
         raise RuntimeError(f"Invalid output directory {outputDirectory}")
-    for lineDict in lineDictList:
+    numLines = len(lineDictList)
+    logger.info(f"Generating audio files for {numLines} audio lines")
+    for i, lineDict in enumerate(lineDictList):
+        if i % 20 == 0 and i != 0:
+            logger.info(f"Generated {i} audio files out of {numLines}")
         outfile = os.path.join(outputDirectory, lineDict["id"]+".mp3")
         if lineDict["speaker"] in speakerToVoiceMap:
             voice, speed, pitch = speakerToVoiceMap[lineDict["speaker"]]
+        elif lineDict["speaker"] in mappedSpeakerToVoiceMap:
+            voice, speed, pitch = mappedSpeakerToVoiceMap[lineDict["speaker"]]
         else:
             voice = restList[random.randint(0, len(restList)-1)]
             speed = random.uniform(0.93, 1.04)
             pitch = random.uniform(-10.0, 5.0)
+            mappedSpeakerToVoiceMap[lineDict["speaker"]] = voice, speed, pitch
         
         speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
-        time.sleep(0.2)
+        time.sleep(0.05)
+        
+    logger.info(f"Finished generating {numLines} audio files")
         
 
 def generate_audio_files_cli():
     parser = argparse.ArgumentParser(description="Generate audio files for "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("input_file", help="The lines json file")
-    parser.add_argument("--auth_file", requred=True, help="The google server credentials file")
+    parser.add_argument("--auth_file", required=True, help="The google server credentials file")
     parser.add_argument("ouput_directory", help="The output directory")
     
     k3logging.set_parser_log_arguments(parser)

@@ -55,7 +55,9 @@ setup(
             # a list of strings of format:
             # <command> = <package>:<function>
             'lw-doc-extractor-cli = lw_doc_extractor.main.cli:main',
-            'lw-aticy-populator-cli = lw_doc_extractor.main.cli:run_populator_main'
+            'lw-aticy-populator-cli = lw_doc_extractor.main.cli:run_populator_main',
+            'lw-dialog-lines-extract = lw_doc_extractor.main.tools:extract_dialog_lines',
+            'lw-audio-generate-placeholder = lw_doc_extractor.main.tools:generate_audio_files_cli'
             # , ...
         ]
     }
