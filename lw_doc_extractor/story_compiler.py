@@ -8,6 +8,7 @@ import collections
 import re
 import logging
 import binascii
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +19,32 @@ VAR_NM_MATCHER = re.compile("[a-zA-Z_][a-zA-Z_0-9\.]*")
 # id to an int counter
 _idToOccurenceTracker = {}
 
-def get_dialog_line_id(enityName, menuText, lineText):
+VALID_DIGITS_FOR_ID = set()
+VALID_DIGITS_FOR_ID.update(string.digits)
+VALID_DIGITS_FOR_ID.update(string.ascii_letters)
+VALID_DIGITS_FOR_ID.add("_")
+VALID_DIGITS_FOR_ID.add("#")
+
+def _format_string(inpStr):
+    inpStr = "_".join(inpStr.split())
+    return ''.join(c for c in inpStr if c in VALID_DIGITS_FOR_ID)
+
+def get_dialog_line_id(enityName, menuText, stage_directions, lineText):
     global _idToOccurenceTracker
+    
     en = enityName.strip() if enityName else ""
     mt = menuText.strip() if menuText else ""
     lt = lineText.strip() if lineText else ""
+    sd = stage_directions.strip() if stage_directions else ""
     
-    crcStr = "{}#{}#{}".format(en, mt, lt )
+    crcStr1 = "{}#{}#{}".format(en, mt, lt)
+        
+    resStr = _format_string(crcStr1)
     
-    acrc = binascii.crc32(crcStr.encode("utf-8"))
-
+    acrc = binascii.crc32(crcStr1.encode("utf-8"))
     resHex = "{:08X}".format(acrc)
     
-    retStr = "{}#{}#{}#{}".format(resHex, en, mt, lineText)
+    retStr = "{}#{}".format(resHex, resStr)
     if len(retStr) > 64:
         retStr = retStr[:64]
         
@@ -371,7 +385,7 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                         internal_id = nodeId+"_"+str(len(instructions))
                         childIntIds.append(internal_id)
                         choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : None, "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
-                        extCId = get_dialog_line_id(instrPrmDict["entity_name"], cDict["menu_text"], cDict["spoken_text"])
+                        extCId = get_dialog_line_id(instrPrmDict["entity_name"], cDict["menu_text"], cDict["stage_directions"], cDict["spoken_text"])
                         instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": extCId}
                         instructions.append(instrDict)
                         instructionPos.append((seqPosX+intrPosCnt, seqPosY))
@@ -426,7 +440,8 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                         entNm = instrPrmDict["entity_name"]
                         entTxt = instrPrmDict["spoken_text"]
                         nmuTxt = instrPrmDict["menu_text"]
-                        extId = get_dialog_line_id(entNm, nmuTxt, entTxt)
+                        dsTxt = instrPrmDict["stage_directions"]
+                        extId = get_dialog_line_id(entNm, nmuTxt, dsTxt, entTxt)
                     
                     instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": extId}
                     instructions.append(instrDict)

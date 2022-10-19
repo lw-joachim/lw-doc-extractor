@@ -254,7 +254,7 @@ def getNodeTmpl(node):
 def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, posX, posY):
     logger.debug("In {} creating instruction {}".format(parentNodeId, instruction))
     eventIdInTitle = ["STAGE_EVENT", "SYNC_STAGE_EVENT", "GAME_EVENT_LISTENER", "LOAD_STAGE"]
-    generic  = ["START_QUEST",  "END_QUEST", "THE_END"] + eventIdInTitle
+    generic  = ["START_QUEST",  "END_QUEST", "THE_END", "SAVE_GAME", "COMMENT"] + eventIdInTitle
     
     # templateMap = { "START_QUEST" : "StartQuest",
     #                 "END_QUEST" : "EndQuest",
@@ -284,6 +284,8 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
                 refId = "{}:{}_{}".format(parentNodeId, "_".join(instrType.split("_")[:2]), "_".join(instrPrm["description"].split(" ")))
         elif instrType.endswith("_QUEST"):
             refId = instrPrm["quest_id"]
+        elif instrType ==  "SAVE_GAME":
+            refId = instrPrm["title"]
         else:
             if instrPrm["description"] is None:
                 refId = "{}:{}".format(parentNodeId, str(uuid.uuid4())[:8])

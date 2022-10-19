@@ -4,12 +4,12 @@ inner_sequence: (LINE_COMMENT | inner_statement | simple_dialog_line | jump_stat
 
 // shac
 shac_statement_block :  "-" "SHAC_CHOICE" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
-shac_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
+shac_choice : "Θ" STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? exit_instruction? inner_sequence
 
 
 // hub
 hub_statement_block :  "-" "HUB" _NEWLINE hub_choice+ "HUB_CHOICE_END" _NEWLINE
-hub_choice : "Θ" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")? _NEWLINE condition? exit_instruction? inner_sequence
+hub_choice : "Θ" STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? exit_instruction? inner_sequence
 
 // if
 if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "END_IF" _NEWLINE
@@ -21,7 +21,7 @@ internal_jump_statement : ">" REFERENCED_ID _NEWLINE
 external_jump_statement : "►" REFERENCED_ID _NEWLINE
 
 // dialog
-simple_dialog_line.-2 : ENTITY_NAME COMMENT? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
+simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
@@ -29,15 +29,17 @@ player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? COMMENT? _NEWLINE condition?
 
 // inner statement
 ?inner_statement : "-" inner_statement_cmd _NEWLINE
-?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement
+?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement | comment_statement | save_game_statement
 
-load_stage_statement : "LOAD_STAGE" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
-stage_event_statement : "STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
-sync_stage_event_statement : "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
-game_event_listener_statement : "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+load_stage_statement : "LOAD_STAGE" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
+stage_event_statement : "STAGE_EVENT" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
+sync_stage_event_statement : "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
+game_event_listener_statement : "GAME_EVENT_LISTENER" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
+comment_statement :  "COMMENT" COMMENT_TEXT
+save_game_statement : "SAVE_GAME" STATEMENT_DESCRIPTION "{" SAVE_GAME_ID "}"
 
-mindset_notification_statement : "MINDSET_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
-wiki_notification_statement : "WIKI_NOTIFICATION" STATEMENT_DESCRIPTION ("{" EVENT_ID "}")?
+mindset_notification_statement : "MINDSET_NOTIFICATION" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
+wiki_notification_statement : "WIKI_NOTIFICATION" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
 
 set_statement : "SET" INSTRUCTION
 node_ref_statement : "*" ID
@@ -62,11 +64,15 @@ QUEST_ID : /[^\n\r]+/
 
 STATEMENT_DESCRIPTION : /[^\n\r\{]+/
 EVENT_ID : /[A-Za-z0-9\-_: ]+/
+SAVE_GAME_ID : /[A-Za-z0-9_]+/
 
 REST_OF_LINE : /[^\n\r]+/
+COMMENT_TEXT : /[^\n\r]+/
 INSTRUCTION : /[^\n\r]+/
 
 MENU_TEXT : /[^\]]+/
+
+STAGE_DIRECTIONS : /\([^\)]*\)/
 
 // whitespace handling
 

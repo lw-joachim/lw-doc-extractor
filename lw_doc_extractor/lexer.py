@@ -46,7 +46,7 @@ _GRAMMAR_FOLDER = os.path.join(_FILE_LOC, "grammar_definitions")
 
 class StatementTransformer(lark.Transformer):
 
-    def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False, defVals={}):
+    def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False, defVals={}, transMap={}):
         resp = {}
         resp.update(defVals)
         if hasDescription:
@@ -56,6 +56,9 @@ class StatementTransformer(lark.Transformer):
             resp["exit_instruction"] = None
         for item in items:
             if type(item) == lark.Token:
+                for orgNm, tarNm in transMap.items():
+                    if item.type == orgNm:
+                        resp[tarNm] = item.value.strip()
                 if item.type == "STATEMENT_DESCRIPTION":
                     resp["description"] = item.value.strip()
                 elif item.type == "ENTITY_NAME":
@@ -73,7 +76,10 @@ class StatementTransformer(lark.Transformer):
         
     def simple_dialog_line(self, items):
         #return "DIALOG_LINE", items[0].value, items[1].value
-        return "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
+        ret = "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
+        if ret[1]["stage_directions"]:
+            ret[1]["stage_directions"] = ret[1]["stage_directions"].strip("()")
+        return ret
     
     def internal_jump_statement(self, items):
         return "INTERNAL_JUMP", self._process_generic_statement_args(items)
@@ -96,8 +102,11 @@ class StatementTransformer(lark.Transformer):
     def stage_event_statement(self, items):
         return "STAGE_EVENT", self._process_generic_statement_args(items, hasDescription=True)
     
+    def save_game_statement(self, items):
+        return "SAVE_GAME", self._process_generic_statement_args(items, hasDescription=True, transMap={"SAVE_GAME_ID":"title"})
+    
     def set_statement(self, items):
-        return "SET", self._process_generic_statement_args(items) 
+        return "SET", self._process_generic_statement_args(items)
     
     def game_event_listener_statement(self, items):
         return "GAME_EVENT_LISTENER", self._process_generic_statement_args(items, hasDescription=True)
@@ -105,9 +114,12 @@ class StatementTransformer(lark.Transformer):
     def the_end_statement(self, items):
         return "THE_END", self._process_generic_statement_args(items, hasDescription=True)
     
-    
     def node_ref_statement(self, items):
         return "NODE_REF", self._process_generic_statement_args(items)
+    
+    def comment_statement(self, items):
+        return "COMMENT", self._process_generic_statement_args(items, hasDescription=True, transMap={"COMMENT_TEXT":"description"})
+    
     
     # def _process_generic_statement(self, name, *args, **kwargs):
     #     items = args[0]

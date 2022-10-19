@@ -9,7 +9,8 @@ import k3logging
 import sys
 import subprocess
 
-from lw_doc_extractor import __version__, primitive_doc_parser, doc_parser, story_compiler
+from lw_doc_extractor import __version__, doc_parser, story_compiler
+from lw_doc_extractor.old import primitive_doc_parser
 import errno
 import os
 import json
