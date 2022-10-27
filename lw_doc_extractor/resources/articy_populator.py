@@ -207,7 +207,6 @@ class ArticyApiWrapper:
     def _get_char_int(self, entitiesFolder):
         res = {}
         for c in entitiesFolder.GetChildren():
-            #['AddAttachmentToStrip', 'AddInputPin', 'AddOutputPin', 'CanBePartitioned', 'CanHaveAttachments', 'CanHaveChildren', 'ClearStrip', 'Equals', 'FindIndex', 'GetAllowedChildrenTypes', 'GetAttachments', 'GetAvailableProperties', 'GetChildren', 'GetColor', 'GetColumnIndex', 'GetDataType', 'GetDisplayName', 'GetExternalId', 'GetFlowPosition', 'GetFlowSize', 'GetHashCode', 'GetInputPin', 'GetInputPins', 'GetObjectContext', 'GetObjectUrl', 'GetOutputPin', 'GetOutputPins', 'GetParent', 'GetPartitionId', 'GetPreviewImage', 'GetPropertyInfo', 'GetShortId', 'GetStripElements', 'GetStripIds', 'GetStripMap', 'GetTechnicalName', 'GetTemplateId', 'GetTemplateTechnicalName', 'GetText', 'GetType', 'HasColor', 'HasDisplayName', 'HasExternalId', 'HasPreviewImage', 'HasProperty', 'HasShortId', 'HasTechnicalName', 'HasText', 'HoldsPartition', 'Id', 'InsertAttachmentIntoStrip', 'IsConnectable', 'IsCustomizeable', 'IsDisplayNameCalculated', 'IsFolder', 'IsInContext', 'IsInDocumentContext', 'IsInFlowContext', 'IsInLocationContext', 'IsReadOnly', 'IsSystemFolder', 'IsUserFolder', 'IsValid', 'IsValidExpressoScript', 'Item', 'MayAddAttachmentToStrip', 'MayInsertAttachmentIntoStrip', 'MaySetObjectReference', 'MemberwiseClone', 'ObjectType', 'ReferenceEquals', 'RemoveAttachmentFromStrip', 'RemoveAttachmentFromStripAtIndex', 'RemoveInputPin', 'RemoveOutputPin', 'RunQuery', 'SetColor', 'SetDisplayName', 'SetExternalId', 'SetFlowPosition', 'SetFlowSize', 'SetPreviewImage', 'SetShortId', 'SetTechnicalName', 'SetTemplate', 'SetText', 'ToString', 'TypeName', 'ValidateExpressoScript', '__class__', '__delattr__', '__doc__', '__eq__', '__format__', '__getattribute__', '__getitem__', '__hash__', '__init__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__setitem__', '__sizeof__', '__str__', '__subclasshook__']
             if c.IsFolder:
                 res.update(self._get_char_int(c))
             else:
@@ -219,10 +218,9 @@ class ArticyApiWrapper:
         return self._get_char_int(entFolder)
     
     def create_entity(self, parent_folder, character_name):
-        self.session.CreateEntity(parent_folder, character_name)
+        articyObj = self.session.CreateEntity(parent_folder, character_name)
+        articyObj.SetExternalId(character_name)
         self.int_char_dict = self.get_character_name_to_obj_dict()
-            
-    
 
 def _eval_parser_log_arguments(args):
     msgFormat='%(asctime)s %(name)s %(levelname)s:  %(message)s'

@@ -64,7 +64,7 @@ QUEST_ID : /[^\n\r]+/
 
 STATEMENT_DESCRIPTION : /[^\n\r\{]+/
 EVENT_ID : /[A-Za-z0-9\-_: ]+/
-SAVE_GAME_ID : /[A-Za-z0-9_]+/
+SAVE_GAME_ID : /[A-Za-z0-9_\-]+/
 
 REST_OF_LINE : /[^\n\r]+/
 COMMENT_TEXT : /[^\n\r]+/
