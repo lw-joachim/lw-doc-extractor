@@ -483,6 +483,7 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
         logger.info("Processing node {}".format(nodeId))
         if node["type"] == "Chapter":
             articyObj = articyApi.create_flow_fragment(flowFragmentObj, nodeId, template="Chapter")
+            articyObj.SetExternalId(nodeId)
             globalNodeIdToObject[nodeId] = articyObj
         else:
             articyObj = globalNodeIdToObject[nodeId]
