@@ -269,6 +269,8 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
         # res = ""
         # for part in instrType.split("_"):
         #     res += part[:1].upper() + part[1:].lower()
+        if instrType == "COMMENT":
+            return "COMMENT_NODE"
         return instrType
     
     instrType = instruction["instruction_type"]
