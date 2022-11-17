@@ -49,7 +49,7 @@ def prog1r():
     print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.docx", "-o", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "-r", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.txt"]
+        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.docx", "-o", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "-r", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.txt", "--debug_dir", "test_files/debug"]
     cli.main()
 
 def prog3r():
@@ -80,5 +80,5 @@ def prog5r():
     
 if __name__ == '__main__':
     prog1r()
-    prog3r()
+    #prog3r()
     #prog5r()

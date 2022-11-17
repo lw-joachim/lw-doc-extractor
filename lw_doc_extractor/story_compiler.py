@@ -109,7 +109,7 @@ def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, al
             raise RuntimeError(f"Cannot fix sequence {seqId} as it is empty.")
         if sequenceDict[seqId][-1][0] == "THE_END":
             continue
-        if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END"]:
+        if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END", "GENERIC_HUB"]:
             if nodeId in allNodesWithOutgoingLinks:
                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : nodeId}))
                 logger.debug(f"For sequence {seqId} adding internal return jump to {nodeId}")
@@ -120,7 +120,7 @@ def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, al
                 sequenceDict[seqId].append(("EXTERNAL_JUMP", {"referenced_id" : parentHub}))
                 logger.debug(f"For sequence {seqId} adding external jump to {parentHub}")
             else:
-                raise RuntimeError(f"Cannot fix sequence {seqId}.")
+                raise RuntimeError(f"Cannot fix sequence {seqId}. Last command of sequence {sequenceDict[seqId][-1][0]}")
     
 
 # creates new sequences for instructions for hub, dialog choide and if and
@@ -161,7 +161,7 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                             raise RuntimeError("More than one hub found in node {nodeDefnDict['id']}")
                         hubFound = True
                         if nodeDefnDict["node_type"] not in ["Chapter", "Section"]:
-                            raise RuntimeError("Node {nodeDefnDict['id']} defines a hub but is not of type Chapter or Section")
+                            raise RuntimeError(f"Node {nodeDefnDict['id']} defines a hub but is not of type Chapter or Section")
                         
                         hubSeqId = f"{nodeDefnDict['id']}_Hub"
                         
@@ -251,8 +251,9 @@ def _isInstrTypeAllowed(nodeId, nodeType, currSequence, instrType):
     if nodeType in ["C-CUT", "C-SAC"]:
         if instrType == "DIALOG_LINE":
             return True
-        if instrType == "GENERIC_HUB" and nodeType == "C-SAC":
-            return True
+        if nodeType == "C-SAC":
+            if instrType == "GENERIC_HUB" or instrType == "GAME_EVENT_LISTENER":
+                return True
         return False
             
     if nodeType.startswith("D-"):
