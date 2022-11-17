@@ -131,3 +131,6 @@ dmypy.json
 /disttest/
 /winwork/
 /py_test/
+/.project
+/.pydevproject
+/audio_out/

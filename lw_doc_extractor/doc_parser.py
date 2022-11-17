@@ -61,7 +61,7 @@ def export_imgs(inputWordDoc, outputImgPath):
     return
 
 
-def parse(inputWordDoc, outputImageDir, rawDebugOutputDir=None):
+def parse(inputWordDoc, outputImageDir):
     doc = docx.Document(inputWordDoc)
     logger.info(f"Doc number of paragraphs: {len(doc.paragraphs)}")
     logger.info(f"Doc number of inline shapes: {len(doc.inline_shapes)}")
@@ -79,26 +79,16 @@ def parse(inputWordDoc, outputImageDir, rawDebugOutputDir=None):
             imageCounter += 1
         if not currrentLine:
             continue
-        lines.append(currrentLine)
+        lines.extend(currrentLine.split("\n"))
         
     lines.append("") # add a trailing newline
     
     logger.info(f"Extracted {len(lines)} lines.")
-        
-    if rawDebugOutputDir:
-        rawOutputLocaiton = os.path.join(rawDebugOutputDir,"doc_output.raw")
-        with open(rawOutputLocaiton, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(lines))
-        
-        linesOutputLocaiton = os.path.join(rawDebugOutputDir,"doc_output.json")
-        with open(linesOutputLocaiton, "w") as fh:
-            json.dump(lines, fh, indent=2)
     
-            logger.info(f"A copy was written to {linesOutputLocaiton}")
     from lw_doc_extractor import lexer, story_compiler
     ast = lexer.parse(lines)
     
     logger.info(f"Lexing complete")
     
-    return ast
+    return ast, lines
     

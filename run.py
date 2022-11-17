@@ -49,7 +49,7 @@ def prog1r():
     print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.docx", "-o", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json"]
+        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.docx", "-o", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "-r", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.txt"]
     cli.main()
 
 def prog3r():
@@ -74,10 +74,11 @@ def prog5r():
     
     with open("test_files\\real\\lines.json") as fh:
         al = json.load(fh)
-    tools.generate_audio_files(al, "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\\audio_out", "test_files\\tts_key.json")
+    # "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\\audio_out"
+    tools.generate_audio_files(al, "audio_out", "test_files\\tts_key.json")
     
     
 if __name__ == '__main__':
-    #prog1r()
-    #prog3r()
+    prog1r()
     prog3r()
+    #prog5r()

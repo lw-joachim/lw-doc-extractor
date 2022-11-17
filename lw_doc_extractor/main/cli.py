@@ -67,7 +67,8 @@ def main():
     parser.add_argument("intput_file", help="The input document file")
     parser.add_argument("-o", "--output", default="out.json", help="The output file path")
     parser.add_argument("--output_images", help="If set will save the images into this directory, else a directory will be created next to the output json")
-    parser.add_argument("--primitive", action="store_true", help="Use the old/primitive parsing algorithm")
+    parser.add_argument("-r", "--raw", help="A slightly formated raw output of the document")
+    parser.add_argument("--debug_dir", help="A debug directory into which to write debug files")
     
     k3logging.set_parser_log_arguments(parser)
     
@@ -76,44 +77,67 @@ def main():
     k3logging.eval_parser_log_arguments(args)
         
     
-    
-    if args.primitive:
-        primitive_doc_parser.parse(args.intput_file, args.output)
+    outputPath = os.path.abspath(args.output)
+    if args.output_images:
+        imgOutputPath = os.path.abspath(args.output_images)
     else:
-        outputPath = os.path.abspath(args.output)
-        if args.output_images:
-            imgOutputPath = os.path.abspath(args.output_images)
-        else:
-            imgOutputPath = os.path.abspath(os.path.join(os.path.dirname(outputPath), "Images"))
-            try:
-                os.makedirs(os.path.dirname(imgOutputPath))
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise
-                
-        outputDirPath = os.path.dirname(outputPath)
-        debugDirPath = os.path.join(outputDirPath, "debug")
-        
+        imgOutputPath = os.path.abspath(os.path.join(os.path.dirname(outputPath), "Images"))
+        try:
+            os.makedirs(os.path.dirname(imgOutputPath))
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+            
+    outputDirPath = os.path.dirname(outputPath)
+    
+    ast, lines = doc_parser.parse(args.intput_file, imgOutputPath)
+    
+    if args.debug_dir:
+        debugDirPath = os.path.abspath(args.debug_dir)
+    
         try:
             os.makedirs(debugDirPath)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
+            
+        rawOutputLocaiton = os.path.join(debugDirPath,"doc_output.raw")
+        with open(rawOutputLocaiton, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
         
-        ast = doc_parser.parse(args.intput_file, imgOutputPath, debugDirPath)
-        
-        lexOutPath = os.path.join(debugDirPath,"lexer_output.json")
+        linesOutputLocaiton = os.path.join(debugDirPath,"doc_output.json")
+        with open(linesOutputLocaiton, "w") as fh:
+            json.dump(lines, fh, indent=2)
     
+            logger.info(f"A copy was written to {linesOutputLocaiton}")
+    
+        lexOutPath = os.path.join(debugDirPath,"lexer_output.json")
+
         with open(lexOutPath, "w") as fh:
             json.dump(ast, fh, indent=2)
-        
+    
         logger.info(f"Parsed and structured (lexing) output written to {lexOutPath}")
+    
+    logger.info(f"Parsing and structuring the input (lexing) complete")
+    
+    if args.raw:
+        with open(args.raw, "w", encoding="utf-8") as fh:
+            for i, line in enumerate(lines):
+                if i > 0:
+                    fh.write("\n")
+                if line.startswith("*"):
+                    fh.write(line)
+                elif line.startswith("§"):
+                    fh.write("  " + line)
+                else:
+                    fh.write("    " + line)
+        logger.info(f"Wrote text output of input to {args.raw}")
+    
+    resultJson = story_compiler.compile_story(ast)
+    
+    logger.info(f"Compilation complete")
+    
+    with open(outputPath, "w") as fh:
+        json.dump(resultJson, fh, indent=2)
         
-        resultJson = story_compiler.compile_story(ast)
-        
-        logger.info(f"Compilation complete")
-        
-        with open(outputPath, "w") as fh:
-            json.dump(resultJson, fh, indent=2)
-            
-        logger.info(f"Final (compiled) output written to {outputPath}")
+    logger.info(f"Final (compiled) output written to {outputPath}")
