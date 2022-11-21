@@ -124,8 +124,8 @@ def generate_audio_recording_files(compilerOutput, outputDir):
         writer.writeheader()
     
         for sp in speakerList:
-            targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
-            targetComplPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding_with_others.txt")
+            targetPath = os.path.join(outputDir, f"{sp}_lines_for_recording.txt")
+            targetComplPath = os.path.join(outputDir, f"{sp}_lines_for_recording_with_others.txt")
             fhMinimal = open(targetPath, "w", encoding="utf-8")
             fhFull = open(targetComplPath, "w", encoding="utf-8")
             
