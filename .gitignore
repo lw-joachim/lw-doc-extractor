@@ -134,3 +134,5 @@ dmypy.json
 /.project
 /.pydevproject
 /audio_out/
+/test_files/
+/.settings
