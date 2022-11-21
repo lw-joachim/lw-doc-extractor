@@ -15,10 +15,20 @@ import json
 from argparse import RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
 import random
 import time
+import collections
+import csv
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
 logger = logging.getLogger(__name__)
+
+def get_node_to_types(compOutDict):
+    #"is_cutscene" : n["type"].startswith("C-")
+    return {n["id"] : n["type"]  for n in compOutDict["nodes"]}
+    
+def get_node_to_description(compOutDict):
+    #"is_cutscene" : n["type"].startswith("C-")
+    return {n["id"] : n["description"]  for n in compOutDict["nodes"]}
 
 def get_all_lines(compOutDict):
     retLines = []
@@ -30,8 +40,7 @@ def get_all_lines(compOutDict):
                                "parent_node_id" : n["id"],
                                "speaker" : intrDict["parameters"]["entity_name"],
                                "text" : intrDict["parameters"]["spoken_text"],
-                               "stage_directions" : intrDict["parameters"]["stage_directions"],
-                               "is_cutscene" : n["type"].startswith("C-") }
+                               "stage_directions" : intrDict["parameters"]["stage_directions"]}
                 for k, v in diaLineDict.items():
                     if k == "stage_directions":
                         continue
@@ -49,7 +58,7 @@ def get_all_lines(compOutDict):
     return retLines
 
 def extract_dialog_lines():
-    parser = argparse.ArgumentParser(description="Extract lines from compiler output"+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Extract lines from compiler output."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("input_file", help="The compiler output json file")
     parser.add_argument("output_file", help="The output json file")
     k3logging.set_parser_log_arguments(parser)
@@ -60,11 +69,81 @@ def extract_dialog_lines():
     with open(args.input_file) as fh:
         compOutDict = json.load(fh)
         
-    with open(args.output_file, "w") as fh:
+    with open(args.output_file) as fh:
         lineDicts = get_all_lines(compOutDict)
         json.dump(lineDicts, fh, indent=2)
         logger.info(f"Writing lines to {args.output_file}")
     logger.info(f"Final output written to {args.output_file}")
+    
+def generate_audio_recording_files(compilerOutput, outputDir):
+    
+    nodeIdToTypeMap = get_node_to_types(compilerOutput)
+    nodeIdToDescrMap = get_node_to_description(compilerOutput)
+    lineDictList = get_all_lines(compilerOutput)
+    
+    linesForMasterCsv = []
+    characterToDialogToLines = collections.OrderedDict()
+    
+    for lineDict in lineDictList:
+        speaker = lineDict["speaker"]
+        dialog = lineDict["parent_node_id"]
+        
+        if speaker not in characterToDialogToLines:
+            characterToDialogToLines[speaker] = collections.OrderedDict()
+            
+        if dialog not in characterToDialogToLines[speaker]:
+            characterToDialogToLines[speaker][dialog] = []
+        
+        characterToDialogToLines[speaker][dialog].append(lineDict)
+        
+    for sp in characterToDialogToLines:
+        ct = 0
+        targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
+        with open(targetPath, "w", encoding="utf-8") as fh:
+            for ch in characterToDialogToLines[sp]:
+                titleStr = nodeIdToTypeMap[ch] + " "+ ch
+                fh.write("\n\n"+ titleStr + "\n" + "="*len(titleStr) +"\n")
+                if nodeIdToDescrMap[ch]:
+                    fh.write(nodeIdToDescrMap[ch] + "\n" + "-"*len(titleStr) +"\n")
+                for lineD in characterToDialogToLines[sp][ch]:
+                    fh.write("\n")
+                    if lineD["stage_directions"]:
+                        fh.write("(" + lineD["stage_directions"] + ")\n")
+                    fh.write(lineD["text"] + "\n")
+                    ct += 1
+                    linesForMasterCsv.append(lineD)
+                    
+        logger.info(f"Written {ct} lines for speaker {sp} to {targetPath}")
+                    
+    with open(os.path.join(outputDir, 'audio_line_referece.csv'), 'w', newline='') as csvfile:
+        fieldnames = ['speaker', 'parent_node_id', "text", "id"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect='excel',  extrasaction='ignore')
+        writer.writeheader()
+        
+        for line in linesForMasterCsv:
+            writer.writerow(line)
+            
+def generate_audio_recording_files_cli():
+    parser = argparse.ArgumentParser(description="Generate scripts for audio recordings."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__))
+    parser.add_argument("input_file", help="The compiler output json file")
+    parser.add_argument("output_directory", help="The output directory to which the generated files are written to.")
+
+    k3logging.set_parser_log_arguments(parser)
+
+    args = parser.parse_args()
+    
+    k3logging.eval_parser_log_arguments(args)    
+    
+    try:
+        os.makedirs(args.output_directory)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+        
+    with open(args.input_file) as fh:
+        compOutDict = json.load(fh)
+        
+    generate_audio_recording_files(compOutDict, args.output_directory)
 
 
 def generate_audio_files(lineDictList, outputDirectory, authFile):
@@ -122,7 +201,7 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
         
 
 def generate_audio_files_cli():
-    parser = argparse.ArgumentParser(description="Generate audio files for "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Generate audio files for given lines. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("input_file", help="The lines json file")
     parser.add_argument("--auth_file", required=True, help="The google server credentials file")
     parser.add_argument("ouput_directory", help="The output directory")
@@ -132,6 +211,12 @@ def generate_audio_files_cli():
     args = parser.parse_args()
     
     k3logging.eval_parser_log_arguments(args)
+    
+    try:
+        os.makedirs(args.ouput_directory)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
     
     with open(args.input_file) as fh:
         lineDictList = json.load(fh)

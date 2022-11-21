@@ -75,7 +75,6 @@ def main():
     args = parser.parse_args()
     
     k3logging.eval_parser_log_arguments(args)
-        
     
     outputPath = os.path.abspath(args.output)
     if args.output_images:

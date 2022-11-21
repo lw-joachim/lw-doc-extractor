@@ -77,8 +77,13 @@ def prog5r():
     # "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\\audio_out"
     tools.generate_audio_files(al, "audio_out", "test_files\\tts_key.json")
     
+def prog6():
+    logging.basicConfig(level=logging.DEBUG)
+        
+    
+    
     
 if __name__ == '__main__':
-    prog1r()
+    #prog1r()
     #prog3r()
-    #prog5r()
+    prog5r()
