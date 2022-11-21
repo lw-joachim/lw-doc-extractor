@@ -82,46 +82,118 @@ def generate_audio_recording_files(compilerOutput, outputDir):
     lineDictList = get_all_lines(compilerOutput)
     
     linesForMasterCsv = []
-    characterToDialogToLines = collections.OrderedDict()
+    nodeToLines = collections.OrderedDict()
+    
+    nodeToCharacters = {}
+    
+    speakerSet = set()
+    
+    nodeToSpeakerSet = {}
     
     for lineDict in lineDictList:
         speaker = lineDict["speaker"]
-        dialog = lineDict["parent_node_id"]
+        node = lineDict["parent_node_id"]
         
-        if speaker not in characterToDialogToLines:
-            characterToDialogToLines[speaker] = collections.OrderedDict()
-            
-        if dialog not in characterToDialogToLines[speaker]:
-            characterToDialogToLines[speaker][dialog] = []
+        if node not in nodeToLines:
+            nodeToLines[node] = []
+        nodeToLines[node].append(lineDict)
         
-        characterToDialogToLines[speaker][dialog].append(lineDict)
+        if node not in nodeToSpeakerSet:
+            nodeToSpeakerSet[node] = set()
+        nodeToSpeakerSet[node].add(speaker)
         
-    for sp in characterToDialogToLines:
-        ct = 0
-        targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
-        with open(targetPath, "w", encoding="utf-8") as fh:
-            for ch in characterToDialogToLines[sp]:
-                titleStr = nodeIdToTypeMap[ch] + " "+ ch
-                fh.write("\n\n"+ titleStr + "\n" + "="*len(titleStr) +"\n")
-                if nodeIdToDescrMap[ch]:
-                    fh.write(nodeIdToDescrMap[ch] + "\n" + "-"*len(titleStr) +"\n")
-                for lineD in characterToDialogToLines[sp][ch]:
-                    fh.write("\n")
-                    if lineD["stage_directions"]:
-                        fh.write("(" + lineD["stage_directions"] + ")\n")
-                    fh.write(lineD["text"] + "\n")
-                    ct += 1
-                    linesForMasterCsv.append(lineD)
-                    
-        logger.info(f"Written {ct} lines for speaker {sp} to {targetPath}")
-                    
+        speakerSet.add(speaker)
+
+    speakerList = sorted(list(speakerSet))
+    
+    def _write_line(lineEntry, fhMinmal, fhFull, surrSpeaker, lineDict):
+        pass
+    
+    def _write_both(fhMinmal, fhFull, prefixStr, txtToWrite):
+        fhMinmal.write(prefixStr+txtToWrite)
+        fhFull.write(prefixStr+txtToWrite)
+        
+    def _write_on_full_only(_fhMinmal, fhFull, prefixStr, txtToWrite):
+        fhFull.write(prefixStr+txtToWrite)
+    
+    
     with open(os.path.join(outputDir, 'audio_line_referece.csv'), 'w', newline='') as csvfile:
+    
         fieldnames = ['speaker', 'parent_node_id', "text", "id"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect='excel',  extrasaction='ignore')
         writer.writeheader()
+    
+        for sp in speakerList:
+            targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
+            targetComplPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding_with_others.txt")
+            fhMinimal = open(targetPath, "w", encoding="utf-8")
+            fhFull = open(targetComplPath, "w", encoding="utf-8")
+            
+            _write_both(fhMinimal, fhFull, "", f"Lines for audio recoding for character {sp}\n")
+            
+            ct = 0
+            for node in nodeToLines:
+                if sp not in nodeToSpeakerSet[node]:
+                    continue
+                
+                titleStr = nodeIdToTypeMap[node] + " "+ node
+                _write_both(fhMinimal, fhFull, "", "\n\n"+ titleStr + "\n" + "="*len(titleStr) +"\n")
+                if nodeIdToDescrMap[node]:
+                    _write_both(fhMinimal, fhFull, "", nodeIdToDescrMap[node] + "\n" + "-"*len(titleStr) +"\n")
+                
+                _write_both(fhMinimal, fhFull, "", "\n")
+                
+                for lineDict in nodeToLines[node]:
+                    speaker = lineDict["speaker"]
+                    writeFunction  = _write_on_full_only
+                    prefixInd = " "*16
+                    prefixIndInclSpeaker = prefixInd + f"{speaker}: "
+                    if sp == speaker:
+                        prefixInd = ""
+                        prefixIndInclSpeaker = ""
+                        writeFunction = _write_both
+                        writer.writerow(lineDict)
+                        
+                    if lineDict["stage_directions"]:
+                        writeFunction(fhMinimal, fhFull, prefixInd, "(" + lineDict["stage_directions"] + ")\n")
+                    writeFunction(fhMinimal, fhFull, prefixIndInclSpeaker, lineDict["text"] + "\n")
+                    writeFunction(fhMinimal, fhFull, "", "\n")
+                    
+                    ct += 1
+
+            fhMinimal.close()
+            fhFull.close()
+            
+            logger.info(f"Written {ct} lines for speaker {sp}.")
+            
+    logger.info(f"Finished writing audio recoding script files for {len(speakerList)} characters.")
         
-        for line in linesForMasterCsv:
-            writer.writerow(line)
+    # for sp in characterToDialogToLines:
+    #     ct = 0
+    #     targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
+    #     with open(targetPath, "w", encoding="utf-8") as fh:
+    #         for ch in characterToDialogToLines[sp]:
+    #             titleStr = nodeIdToTypeMap[ch] + " "+ ch
+    #             fh.write("\n\n"+ titleStr + "\n" + "="*len(titleStr) +"\n")
+    #             if nodeIdToDescrMap[ch]:
+    #                 fh.write(nodeIdToDescrMap[ch] + "\n" + "-"*len(titleStr) +"\n")
+    #             for lineD in characterToDialogToLines[sp][ch]:
+    #                 fh.write("\n")
+    #                 if lineD["stage_directions"]:
+    #                     fh.write("(" + lineD["stage_directions"] + ")\n")
+    #                 fh.write(lineD["text"] + "\n")
+    #                 ct += 1
+    #                 linesForMasterCsv.append(lineD)
+    #
+    #     logger.info(f"Written {ct} lines for speaker {sp} to {targetPath}")
+    #
+    # with open(os.path.join(outputDir, 'audio_line_referece.csv'), 'w', newline='') as csvfile:
+    #     fieldnames = ['speaker', 'parent_node_id', "text", "id"]
+    #     writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect='excel',  extrasaction='ignore')
+    #     writer.writeheader()
+    #
+    #     for line in linesForMasterCsv:
+    #         writer.writerow(line)
             
 def generate_audio_recording_files_cli():
     parser = argparse.ArgumentParser(description="Generate scripts for audio recordings."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__))
