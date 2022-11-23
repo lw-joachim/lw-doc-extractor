@@ -69,7 +69,7 @@ def extract_dialog_lines():
     with open(args.input_file) as fh:
         compOutDict = json.load(fh)
         
-    with open(args.output_file) as fh:
+    with open(args.output_file, "w") as fh:
         lineDicts = get_all_lines(compOutDict)
         json.dump(lineDicts, fh, indent=2)
         logger.info(f"Writing lines to {args.output_file}")

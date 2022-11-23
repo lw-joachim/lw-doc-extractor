@@ -434,6 +434,8 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                     elif instType == "NODE_REF":
                         if instrPrmDict["id"] not in allNodeIds:
                             raise RuntimeError(f"Unknown node reference {instrPrmDict['id']}")
+                        if instrPrmDict["id"] in nodesReferenced:
+                            raise RuntimeError(f"Node {instrPrmDict['id']} has been reference twice")
                         
                         nodesReferenced.append(instrPrmDict["id"])
                         extId = instrPrmDict["id"]
