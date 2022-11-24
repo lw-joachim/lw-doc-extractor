@@ -25,7 +25,7 @@ simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? _NEWLINE SPOKEN_TEXT COMME
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
-player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? COMMENT? _NEWLINE condition? exit_instruction? inner_sequence
+player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? _NEWLINE condition? exit_instruction? inner_sequence
 
 // inner statement
 ?inner_statement : "-" inner_statement_cmd _NEWLINE

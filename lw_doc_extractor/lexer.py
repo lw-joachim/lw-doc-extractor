@@ -78,7 +78,7 @@ class StatementTransformer(lark.Transformer):
         #return "DIALOG_LINE", items[0].value, items[1].value
         ret = "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
         if ret[1]["stage_directions"]:
-            ret[1]["stage_directions"] = ret[1]["stage_directions"].strip("()")
+            ret[1]["stage_directions"] = ret[1]["stage_directions"].strip("()").strip()
         return ret
     
     def internal_jump_statement(self, items):
@@ -197,6 +197,8 @@ class StatementTransformer(lark.Transformer):
                     returnDict["menu_text"] = item.value.strip()
                 elif item.type == "SPOKEN_TEXT":
                     returnDict["spoken_text"] = item.value.strip()
+                elif item.type == "STAGE_DIRECTIONS":
+                    returnDict["stage_directions"] = item.value.strip("()").strip()
                 else:
                     #logger.warning("Unexpected token in ")
                     raise RuntimeError(f"Unexpected token {item.type} in player_choice")
