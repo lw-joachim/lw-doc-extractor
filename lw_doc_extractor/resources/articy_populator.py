@@ -18,6 +18,7 @@ import datetime
 
 import logging
 import uuid
+import socket
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 __version__ = "0.2.0"
@@ -621,14 +622,17 @@ def main():
     parser.add_argument("-vv", "--extra_verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("--auth_file", help="File with username on first line and password on second line")
     parser.add_argument("--articy_api_lib", default=r"C:\soft\articy_draft_API", help="Path to articy api installation")
-    parser.add_argument("--callback_srv_on_complete", help="srvHost:srvPort|pass")
+    parser.add_argument("--callback_srv_on_complete", help="srvHost:srvPort")
     
     args = parser.parse_args()
     
     if args.callback_srv_on_complete:
-        srvHost, restStr = args.callback_srv_on_complete.split(":")
-        srvPort, srvpass = restStr.split("|")
-        conn = Client((srvHost, srvPort) , authkey=srvpass.decode("utf-8"))
+        srvHost, srvPort = args.callback_srv_on_complete.split(":")
+        
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn.connect((srvHost, int(srvPort)))
+        
+        #conn = Client((srvHost, srvPort) , authkey=srvpass.decode("utf-8"))
     else:
         conn = None
     
@@ -720,12 +724,17 @@ def main():
                 session.Logout()
             ArticyApi.Shutdown()
         print("Import complete")
-        msgStr = json.dumps({"exit_state" : "Not ok" })
-        conn.send_bytes(msgStr.encode("utf-8", errors="replace"))
+        if conn:
+            msgStr = json.dumps({"exit_state" : "ok", 'error_message' : None })
+            conn.send(msgStr.encode("utf-8", errors="replace"))
     except Exception as e:
-        msgStr = json.dumps({"error_message" : str(e), "exit_state" : "Not ok" })
-        conn.send_bytes(msgStr.encode("utf-8", errors="replace"))
-        
+        if conn:
+            msgStr = json.dumps({"error_message" : str(e), "exit_state" : "not ok" })
+            conn.send(msgStr.encode("utf-8", errors="replace"))
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
     main()

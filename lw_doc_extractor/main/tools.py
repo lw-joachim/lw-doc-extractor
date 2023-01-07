@@ -10,6 +10,7 @@ import sys
 import subprocess
 
 from lw_doc_extractor import __version__, gspeech_synthesis
+from lw_doc_extractor.main import cli
 import errno
 import json
 from argparse import RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
@@ -17,6 +18,8 @@ import random
 import time
 import collections
 import csv
+import tempfile
+import shutil
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
@@ -29,6 +32,28 @@ def get_node_to_types(compOutDict):
 def get_node_to_description(compOutDict):
     #"is_cutscene" : n["type"].startswith("C-")
     return {n["id"] : n["description"]  for n in compOutDict["nodes"]}
+
+def get_chapter_id(compOutDict):
+    for n in compOutDict["nodes"]:
+        if n["type"] == "Chapter":
+            return n["id"]
+        
+    raise RuntimeError("No chapter node in commpiler output")
+            
+def _mkdir_ignore_exists(dirPath):
+    try:
+        os.makedirs(dirPath)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+def _clear_files(dirPath):
+    for filename in os.listdir(dirPath):
+        file_path = os.path.join(dirPath, filename)
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
 
 def get_all_lines(compOutDict):
     retLines = []
@@ -167,33 +192,6 @@ def generate_audio_recording_files(compilerOutput, outputDir):
             logger.info(f"Written {ct} lines for speaker {sp}.")
             
     logger.info(f"Finished writing audio recoding script files for {len(speakerList)} characters.")
-        
-    # for sp in characterToDialogToLines:
-    #     ct = 0
-    #     targetPath = os.path.join(outputDir, f"{sp}_lines_for_recoreding.txt")
-    #     with open(targetPath, "w", encoding="utf-8") as fh:
-    #         for ch in characterToDialogToLines[sp]:
-    #             titleStr = nodeIdToTypeMap[ch] + " "+ ch
-    #             fh.write("\n\n"+ titleStr + "\n" + "="*len(titleStr) +"\n")
-    #             if nodeIdToDescrMap[ch]:
-    #                 fh.write(nodeIdToDescrMap[ch] + "\n" + "-"*len(titleStr) +"\n")
-    #             for lineD in characterToDialogToLines[sp][ch]:
-    #                 fh.write("\n")
-    #                 if lineD["stage_directions"]:
-    #                     fh.write("(" + lineD["stage_directions"] + ")\n")
-    #                 fh.write(lineD["text"] + "\n")
-    #                 ct += 1
-    #                 linesForMasterCsv.append(lineD)
-    #
-    #     logger.info(f"Written {ct} lines for speaker {sp} to {targetPath}")
-    #
-    # with open(os.path.join(outputDir, 'audio_line_referece.csv'), 'w', newline='') as csvfile:
-    #     fieldnames = ['speaker', 'parent_node_id', "text", "id"]
-    #     writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect='excel',  extrasaction='ignore')
-    #     writer.writeheader()
-    #
-    #     for line in linesForMasterCsv:
-    #         writer.writerow(line)
             
 def generate_audio_recording_files_cli():
     parser = argparse.ArgumentParser(description="Generate scripts for audio recordings."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__))
@@ -262,8 +260,8 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
             voice, speed, pitch = mappedSpeakerToVoiceMap[lineDict["speaker"]]
         else:
             voice = restList[random.randint(0, len(restList)-1)]
-            speed = random.uniform(0.93, 1.04)
-            pitch = random.uniform(-10.0, 5.0)
+            speed = 1.0 # random.uniform(1, 1)
+            pitch = random.uniform(-5.0, 5.0)
             mappedSpeakerToVoiceMap[lineDict["speaker"]] = voice, speed, pitch
         
         speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
@@ -292,8 +290,93 @@ def generate_audio_files_cli():
     
     with open(args.input_file) as fh:
         lineDictList = json.load(fh)
-        
+    
     generate_audio_files(lineDictList, args.ouput_directory, args.auth_file)
-            
+    
     logger.info(f"Final output written to {args.ouput_directory}")
+    
+def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir):
+    
+    if not scriptInputFile.endswith(".docx") or not os.path.isfile(scriptInputFile):
+        raise RuntimeError(f"Input file is not a valid docx file: {scriptInputFile}")
+    
+    with open(articyConfigPath) as fh:
+        articyConfig = json.load(fh)
+        
+    tmpDir = workingDir
+    logger.info(f"Working in temporary directory {tmpDir}")
+    tmpCompOutFile = os.path.join(tmpDir, "compiler_output.json")
+    tmpRawOutFile = os.path.join(tmpDir, "raw.txt")
+    tmpDebug = os.path.join(tmpDir, "debug")
+    os.makedirs(tmpDebug)
+    cli.run_main(scriptInputFile, tmpCompOutFile, tmpRawOutFile, None, tmpDebug)
+    
+    with open(tmpCompOutFile) as fh:
+        compOutDict = json.load(fh)
+    
+    chapterId = get_chapter_id(compOutDict)
+    
+    if dryRun:
+        targetStoryDir = os.path.join(tmpDir, "Story", "Chapters", chapterId)
+    else:
+        targetStoryDir = os.path.join(projectDirectory, "Story", "Chapters", chapterId)
+    
+    genFilesDir    = os.path.join(targetStoryDir, "GeneratedFiles")
+    scriptDir      = os.path.join(targetStoryDir, "Script")
+    audioScriptDir = os.path.join(targetStoryDir, "GeneratedScriptsForAudioRecording")
+    genAudioDir    = os.path.join(targetStoryDir, "GeneratedAudio")
+    
+    _mkdir_ignore_exists(genFilesDir)
+    _mkdir_ignore_exists(scriptDir)
+    _mkdir_ignore_exists(audioScriptDir)
+    _mkdir_ignore_exists(genAudioDir)
+    
+    _clear_files(genFilesDir)
+    _clear_files(scriptDir)
+    _clear_files(audioScriptDir)
+    _clear_files(genAudioDir)
+    
+    shutil.copy(tmpCompOutFile, os.path.join(genFilesDir, "compiler_output.json"))
+    
+    shutil.copy(scriptInputFile, os.path.join(scriptDir, f"{chapterId}.docx"))
+    shutil.copy(tmpRawOutFile, os.path.join(scriptDir, f"{chapterId}_raw.txt"))
+    
+    generate_audio_recording_files(compOutDict, audioScriptDir)
+    
+    targetProject = articyConfig["test_project"] if dryRun else articyConfig["project"]
+    
+    authFile = os.path.join(tmpDir, "authfile")
+    
+    with open(authFile, "w") as fh:
+        fh.write("{}\n{}".format(articyConfig["user"], articyConfig["password"]))
+    
+    cli.run_populator(tmpCompOutFile, targetProject, "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
+
+    if not dryRun:
+        generate_audio_files(get_all_lines(compOutDict), genAudioDir, googleAuthFile)
+        
+    logger.info("Update story chapter process complete")
+    
+def update_story_chapter_cli():
+    parser = argparse.ArgumentParser(description="Update story chapter in project. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("input_file", help="The input document file")
+    parser.add_argument("project_directory", help="The directory of the project")
+    parser.add_argument("--gauth", required=True, help="The google server json credentials file")
+    parser.add_argument("--articy-config", required=True, help="Json file containing the the artiyc configuration. Required keys:")
+    parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
+    parser.add_argument("--dry-run-dir", help="A directory that can be specified that will be used instead of a temporary directory for debugging")
+    
+    k3logging.set_parser_log_arguments(parser)
+
+    args = parser.parse_args()
+    
+    k3logging.eval_parser_log_arguments(args)
+    
+    if args.dry_run and args.dry_run_dir:
+        tmpDir = args.dry_run_dir
+    else:
+        tmpDirHandle = tempfile.TemporaryDirectory()
+        tmpDir = tmpDirHandle.name
+    
+    update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir)
     

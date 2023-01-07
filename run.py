@@ -1,6 +1,3 @@
-
-
-
 from lw_doc_extractor.main import cli, tools
 import sys
 import socket
@@ -49,41 +46,66 @@ def prog1r():
     print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.docx", "-o", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "-r", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\LF.txt", "--debug_dir", "test_files/debug"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF.docx", "-o", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "-r", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF_raw.txt", "--debug_dir", "test_files/debug"]
     cli.main()
 
 def prog3r():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "--auth_file", "test_files\mycred", "--project", "OneArticy"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred", "--project", "OneArticy"]
     cli.run_populator_main()
     
 def prog3t():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "--auth_file", "test_files\mycred"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred"]
     cli.run_populator_main()
     
 def prog5r():
     logging.basicConfig(level=logging.DEBUG)
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "test_files\\real\\lines.json"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "test_files\\real\\lines.json"]
         
     tools.extract_dialog_lines()
     
     with open("test_files\\real\\lines.json") as fh:
         al = json.load(fh)
     # "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\\audio_out"
-    tools.generate_audio_files(al, "audio_out", "test_files\\tts_key.json")
+    tools.generate_audio_files(al, "test_files\\audio_out", "test_files\\tts_key.json")
     
-def prog6():
+def prog6r():
     logging.basicConfig(level=logging.DEBUG)
-        
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "test_files\\script_out"]
+    
+    
+    tools.generate_audio_recording_files_cli()
+    
+def prog7r():
+    #logging.basicConfig(level=logging.DEBUG)
+    
+    # parser.add_argument("input_file", help="The input document file")
+    # parser.add_argument("project_directory", help="The directory of the project")
+    # parser.add_argument("--gauth", required=True, help="The google server json credentials file")
+    # parser.add_argument("--articy-config", required=True, help="Json file containing the the artiyc configuration. Required keys:")
+    # parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
+    
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\tts_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir"]
+    try:
+        tools.update_story_chapter_cli()
+    finally:
+        print("Done")
     
     
     
 if __name__ == '__main__':
     #prog1r()
     #prog3r()
-    prog5r()
+    prog3t()
+    #prog6r()
+    #prog7r()
+    

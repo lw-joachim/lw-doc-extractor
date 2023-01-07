@@ -56,9 +56,10 @@ setup(
             # <command> = <package>:<function>
             'lw-doc-extractor-cli = lw_doc_extractor.main.cli:main',
             'lw-aticy-populator-cli = lw_doc_extractor.main.cli:run_populator_main',
-            'lw-dialog-lines-extract = lw_doc_extractor.main.tools:extract_dialog_lines',
+            #'lw-dialog-lines-extract = lw_doc_extractor.main.tools:extract_dialog_lines',
             'lw-audio-generate-placeholder = lw_doc_extractor.main.tools:generate_audio_files_cli',
-            'lw-generate-recording-scripts = lw_doc_extractor.main.tools:generate_audio_recording_files_cli'
+            'lw-generate-recording-scripts = lw_doc_extractor.main.tools:generate_audio_recording_files_cli',
+            'lw-update-story-chapter = lw_doc_extractor.main.tools:update_story_chapter'
             # , ...
         ]
     }

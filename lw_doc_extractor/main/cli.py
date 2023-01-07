@@ -15,6 +15,8 @@ import errno
 import os
 import json
 from argparse import RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter
+from multiprocessing.connection import Listener, Connection
+import socket
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
@@ -45,42 +47,55 @@ def run_populator_main():
     if(args.extra_verbose):
         verboseFlag = "-vv"
         
-    _run_populator(args.input_file, args.project, verboseFlag, args.iron_python, args.server,args.server_port, args.auth_file, args.articy_api_lib )
+    run_populator(args.input_file, args.project, verboseFlag, args.iron_python, args.server,args.server_port, args.auth_file, args.articy_api_lib )
     
 
-def _run_populator(compilerOutputInputFile, project="api_test_proj", verbosityFlag="-v", ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170, auth_file=None, articy_api_lib=r"C:\soft\articy_draft_API"):
+def run_populator(compilerOutputInputFile, project="api_test_proj", verbosityFlag="-v", ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170, auth_file=None, articy_api_lib=r"C:\soft\articy_draft_API"):
     authStr = "" if auth_file == None else "--auth_file {auth_file}"
     #'start cmd "ARTICY POPULATOR" /k \"{ironPythonExePath}\" "{_POP_FILE_PATH}" {verbosityFlag} "{compilerOutputInputFile}" --project "{project}" --server {server} --server_port {serverPort} --project {project} {authStr}'
-    runArgs = ["start", "cmd", "\"ARTICY POPULATOR\"", "/k", ironPythonExePath, _POP_FILE_PATH, verbosityFlag, compilerOutputInputFile, "--project", project, "--server", server, "--server_port", str(serverPort), "--project", project, "--articy_api_lib", articy_api_lib]
+    runArgs = ["start", "cmd", "\"ARTICY POPULATOR\"", "/k", ironPythonExePath, _POP_FILE_PATH, verbosityFlag, compilerOutputInputFile, "--project", project, "--server", server, "--server_port", str(serverPort), "--project", project, "--articy_api_lib", articy_api_lib, "--callback_srv_on_complete", "127.0.0.1:31431"]
     if auth_file:
         runArgs.extend(["--auth_file", auth_file])
     print(runArgs)
     logger.info("Running cmd: {}".format(' '.join([str(e) for e in runArgs])))
     subprocess.run(runArgs, shell=True)
+    
+    logger.info("Waiting for populator to be complete")
+    
+    
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 31431))
+        s.settimeout(240)
+        s.listen()
+        conn, addr = s.accept()
+        resBytes = b''
+        with conn:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+                resBytes = resBytes + data
+        jsonStr = resBytes.decode("utf-8")
+        logger.info(f"Message received from populator: {jsonStr}")
+        respObj = json.loads(jsonStr)
+        if respObj["exit_state"] != "ok":
+            raise RuntimeError(f"Populator exited early with error message: {respObj['error_message']}")
+
+    
+    # with Listener(("127.0.0.1", 31431), authkey=b'sajkfkhj') as listener:
+    #     with listener.accept() as conn:
+    #         rbytes = conn.recv_bytes()
+    #         jsonStr = rbytes.decode("utf-8")
+    #         logger.info(f"Message received from populator: {jsonStr}")
+    #         respObj = json.loads(jsonStr)
+    #         if respObj["exit_state"] != "OK":
+    #             raise RuntimeError(f"Populator exited early with error message: {respObj['error_message']}")
+            
+    logger.info(f"Populating articy project {project} complete")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
-    # parser.add_argument("-f", "--flag", action="store_true", help="Example argparse of a choice")
-    # parser.add_argument("-c", "--choice", default="c1", choices=["c1", "c2", "c3", "c4"], help="Example of an argparse choice argument")
-    # parser.add_argument("-o", "--optional", help="Example of an optional flag with an argument")
-    parser.add_argument("intput_file", help="The input document file")
-    parser.add_argument("-o", "--output", default="out.json", help="The output file path")
-    parser.add_argument("--output_images", help="If set will save the images into this directory, else a directory will be created next to the output json")
-    parser.add_argument("-r", "--raw", help="A slightly formated raw output of the document")
-    parser.add_argument("--debug_dir", help="A debug directory into which to write debug files")
-    
-    k3logging.set_parser_log_arguments(parser)
-    
-    args = parser.parse_args()
-    
-    k3logging.eval_parser_log_arguments(args)
-    
-    outputPath = os.path.abspath(args.output)
-    if args.output_images:
-        imgOutputPath = os.path.abspath(args.output_images)
-    else:
-        imgOutputPath = os.path.abspath(os.path.join(os.path.dirname(outputPath), "Images"))
+def run_main(sriptInputFile, outputPath, rawOutputPath=None, imgOutputPath=None, debugDirPath=None):
+    if imgOutputPath:
         try:
             os.makedirs(os.path.dirname(imgOutputPath))
         except OSError as e:
@@ -89,11 +104,9 @@ def main():
             
     outputDirPath = os.path.dirname(outputPath)
     
-    ast, lines = doc_parser.parse(args.intput_file, imgOutputPath)
+    ast, lines = doc_parser.parse(sriptInputFile, imgOutputPath)
     
-    if args.debug_dir:
-        debugDirPath = os.path.abspath(args.debug_dir)
-    
+    if debugDirPath:
         try:
             os.makedirs(debugDirPath)
         except OSError as e:
@@ -119,8 +132,8 @@ def main():
     
     logger.info(f"Parsing and structuring the input (lexing) complete")
     
-    if args.raw:
-        with open(args.raw, "w", encoding="utf-8") as fh:
+    if rawOutputPath:
+        with open(rawOutputPath, "w", encoding="utf-8") as fh:
             for i, line in enumerate(lines):
                 if i > 0:
                     fh.write("\n")
@@ -130,7 +143,7 @@ def main():
                     fh.write("  " + line)
                 else:
                     fh.write("    " + line)
-        logger.info(f"Wrote text output of input to {args.raw}")
+        logger.info(f"Wrote raw text output of input to {rawOutputPath}")
     
     resultJson = story_compiler.compile_story(ast)
     
@@ -140,3 +153,21 @@ def main():
         json.dump(resultJson, fh, indent=2)
         
     logger.info(f"Final (compiled) output written to {outputPath}")
+    
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("input_file", help="The input document file")
+    parser.add_argument("-o", "--output", default="out.json", help="The output file path")
+    parser.add_argument("--output_images", help="If set will save the images into this directory, else a directory will be created next to the output json")
+    parser.add_argument("-r", "--raw", help="A slightly formated raw output of the document")
+    parser.add_argument("--debug_dir", help="A debug directory into which to write debug files")
+    
+    k3logging.set_parser_log_arguments(parser)
+    
+    args = parser.parse_args()
+    
+    k3logging.eval_parser_log_arguments(args)
+    
+    run_main(args.input_file, args.output, args.raw, None, args.debug_dir)
+
