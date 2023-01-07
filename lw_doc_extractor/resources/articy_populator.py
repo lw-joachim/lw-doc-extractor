@@ -621,95 +621,111 @@ def main():
     parser.add_argument("-vv", "--extra_verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("--auth_file", help="File with username on first line and password on second line")
     parser.add_argument("--articy_api_lib", default=r"C:\soft\articy_draft_API", help="Path to articy api installation")
-    
+    parser.add_argument("--callback_srv_on_complete", help="srvHost:srvPort|pass")
     
     args = parser.parse_args()
-    _eval_parser_log_arguments(args)
     
-    if not os.path.isfile(args.intput_file):
-        raise RuntimeError("Invalid input file {} given. Path does not exist.".format(args.intput_file))
-    
-    projectToOpenName = args.project
-    
-    ArticyApi, MyOpenProjArgs = setupArticyApi(args.articy_api_lib)
-
-    ml = MyLogger()
-    ArticyApi.Startup(ml.mylog)
-    
-    session = ArticyApi.CreateSession()
-
-    session.ConnectToServer(args.server, args.server_port)
-    
-    if args.auth_file:
-        with open(args.auth_file) as fh:
-            lines = fh.readlines()
-        user, userpass = lines[0].strip(), lines[1].strip()
+    if args.callback_srv_on_complete:
+        srvHost, restStr = args.callback_srv_on_complete.split(":")
+        srvPort, srvpass = restStr.split("|")
+        conn = Client((srvHost, srvPort) , authkey=srvpass.decode("utf-8"))
     else:
-        user = raw_input("Enter your articy username:").strip()
-        userpass = raw_input("Enter your articy password:").strip()
-    #print("'{}' '{}'".format( user, userpass))
-    session.Login(user, userpass)
+        conn = None
     
-    loggedIn = False
-    projectOpened = False
     try:
-        if not session.IsLoggedIn():
-            logger.warning("Session is not logged in")
+        
+        _eval_parser_log_arguments(args)
+        
+        if not os.path.isfile(args.intput_file):
+            raise RuntimeError("Invalid input file {} given. Path does not exist.".format(args.intput_file))
+        
+        projectToOpenName = args.project
+        
+        ArticyApi, MyOpenProjArgs = setupArticyApi(args.articy_api_lib)
+    
+        ml = MyLogger()
+        ArticyApi.Startup(ml.mylog)
+        
+        session = ArticyApi.CreateSession()
+    
+        session.ConnectToServer(args.server, args.server_port)
+        
+        if args.auth_file:
+            with open(args.auth_file) as fh:
+                lines = fh.readlines()
+            user, userpass = lines[0].strip(), lines[1].strip()
         else:
-            logger.info("Login complete")
-            loggedIn = True
+            user = raw_input("Enter your articy username:").strip()
+            userpass = raw_input("Enter your articy password:").strip()
+        #print("'{}' '{}'".format( user, userpass))
+        session.Login(user, userpass)
         
-        projList = session.GetProjectList()
+        loggedIn = False
+        projectOpened = False
+        try:
+            if not session.IsLoggedIn():
+                logger.warning("Session is not logged in")
+            else:
+                logger.info("Login complete")
+                loggedIn = True
+            
+            projList = session.GetProjectList()
+            
+            logger.debug("Searching for project")
+            projToOpen = None
+            for proj in projList:
+                logger.debug("Project {}: {}".format(proj.DisplayName, proj.Id))
+                if(proj.DisplayName == projectToOpenName):
+                    projToOpen = proj.Id
+            
+            if(projToOpen):
+                logger.debug("Found project to open: {}".format(projToOpen))
+                opArts = MyOpenProjArgs(projToOpen, user, userpass)
+                
+                #pdb.set_trace()
+                
+                with open(args.intput_file) as fh:
+                    sourceObj = json.load(fh)
+                
+                session.OpenProject(opArts)
+                logger.info("Project {} opened".format(projectToOpenName))
+                projectOpened = True
+                
+                articyApi = ArticyApiWrapper(session)
+                
+                logger.info("Checking and creating any missing characters (entities)")
+                create_missing_characters(articyApi, session, sourceObj["characters"])
+                logger.info("Entity processing done")
+                logger.info("Checking, deleting and creating any missing variables")
+                check_delete_create_variables(session, sourceObj["variables"])
+                logger.info("Variable processing done")
+                
+                sysFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Flow)
+                
+                session.ClaimPartition( sysFolder.GetPartitionId() )
+                
+                newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
+    
+                logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
+                f1 = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
+                create_nodes_internals(articyApi, f1, sourceObj["nodes"])
+                logger.info("Finished creating flow in flow fragment {}".format(newFragmentNm))
+        except:
+            logger.info("Error occurred. Stacktrace: ", exc_info=True )
+            raise
+        finally:
+            if projectOpened:
+                session.UnclaimAllMyPartitions()
+            if loggedIn:
+                session.Logout()
+            ArticyApi.Shutdown()
+        print("Import complete")
+        msgStr = json.dumps({"exit_state" : "Not ok" })
+        conn.send_bytes(msgStr.encode("utf-8", errors="replace"))
+    except Exception as e:
+        msgStr = json.dumps({"error_message" : str(e), "exit_state" : "Not ok" })
+        conn.send_bytes(msgStr.encode("utf-8", errors="replace"))
         
-        logger.debug("Searching for project")
-        projToOpen = None
-        for proj in projList:
-            logger.debug("Project {}: {}".format(proj.DisplayName, proj.Id))
-            if(proj.DisplayName == projectToOpenName):
-                projToOpen = proj.Id
-        
-        if(projToOpen):
-            logger.debug("Found project to open: {}".format(projToOpen))
-            opArts = MyOpenProjArgs(projToOpen, user, userpass)
-            
-            #pdb.set_trace()
-            
-            with open(args.intput_file) as fh:
-                sourceObj = json.load(fh)
-            
-            session.OpenProject(opArts)
-            logger.info("Project {} opened".format(projectToOpenName))
-            projectOpened = True
-            
-            articyApi = ArticyApiWrapper(session)
-            
-            logger.info("Checking and creating any missing characters (entities)")
-            create_missing_characters(articyApi, session, sourceObj["characters"])
-            logger.info("Entity processing done")
-            logger.info("Checking, deleting and creating any missing variables")
-            check_delete_create_variables(session, sourceObj["variables"])
-            logger.info("Variable processing done")
-            
-            sysFolder = session.GetSystemFolder(Articy.Api.SystemFolderNames.Flow)
-            
-            session.ClaimPartition( sysFolder.GetPartitionId() )
-            
-            newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
-
-            logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
-            f1 = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
-            create_nodes_internals(articyApi, f1, sourceObj["nodes"])
-            logger.info("Finished creating flow in flow fragment {}".format(newFragmentNm))
-    except:
-        logger.info("Error occurred. Stacktrace: ", exc_info=True )
-        raise
-    finally:
-        if projectOpened:
-            session.UnclaimAllMyPartitions()
-        if loggedIn:
-            session.Logout()
-        ArticyApi.Shutdown()
-    print("Import complete")
 
 if __name__ == "__main__":
     main()
