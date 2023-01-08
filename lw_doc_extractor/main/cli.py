@@ -31,6 +31,7 @@ def run_populator_main():
     parser.add_argument("--server", default="server0185.articy.com", help="Server URL")
     parser.add_argument("--server_port", type=int, default=13170, help="Server Port")
     parser.add_argument("--project", default="api_test_proj", help="The name of the project to import to")
+    parser.add_argument("--target_flow_fragment", help="The target top level flow fragment")
     parser.add_argument("--auth_file", help="File with username on first line and password on second line")
     parser.add_argument("--iron_python", default=r"C:\Program Files\IronPython 2.7\ipy.exe", help="Iron python path. NOTE: Articy.MetaModel.xml needs to have been transferred.")
     parser.add_argument("--articy_api_lib", default=r"C:\soft\articy_draft_API", help="Path to articy api installation")
@@ -47,15 +48,18 @@ def run_populator_main():
     if(args.extra_verbose):
         verboseFlag = "-vv"
         
-    run_populator(args.input_file, args.project, verboseFlag, args.iron_python, args.server,args.server_port, args.auth_file, args.articy_api_lib )
+    run_populator(args.input_file, args.project, args.target_flow_fragment, verboseFlag, args.iron_python, args.server,args.server_port, args.auth_file, args.articy_api_lib )
     
 
-def run_populator(compilerOutputInputFile, project="api_test_proj", verbosityFlag="-v", ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170, auth_file=None, articy_api_lib=r"C:\soft\articy_draft_API"):
+def run_populator(compilerOutputInputFile, project="api_test_proj", target_flow_fragment=None, verbosityFlag="-v", ironPythonExePath=r"C:\Program Files\IronPython 2.7\ipy.exe", server="server0185.articy.com", serverPort=13170, auth_file=None, articy_api_lib=r"C:\soft\articy_draft_API"):
     authStr = "" if auth_file == None else "--auth_file {auth_file}"
     #'start cmd "ARTICY POPULATOR" /k \"{ironPythonExePath}\" "{_POP_FILE_PATH}" {verbosityFlag} "{compilerOutputInputFile}" --project "{project}" --server {server} --server_port {serverPort} --project {project} {authStr}'
     runArgs = ["start", "cmd", "\"ARTICY POPULATOR\"", "/k", ironPythonExePath, _POP_FILE_PATH, verbosityFlag, compilerOutputInputFile, "--project", project, "--server", server, "--server_port", str(serverPort), "--project", project, "--articy_api_lib", articy_api_lib, "--callback_srv_on_complete", "127.0.0.1:31431"]
     if auth_file:
         runArgs.extend(["--auth_file", auth_file])
+    if target_flow_fragment:
+        runArgs.extend(["--target_flow_fragment", target_flow_fragment])
+        
     print(runArgs)
     logger.info("Running cmd: {}".format(' '.join([str(e) for e in runArgs])))
     subprocess.run(runArgs, shell=True)

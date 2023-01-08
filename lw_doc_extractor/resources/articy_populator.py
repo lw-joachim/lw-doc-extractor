@@ -471,7 +471,7 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
     # print(json.dumps(nodeIdToTargetToPinIdx, indent=2))
 
 
-def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
+def create_nodes_internals(articyApi, chapterFlowFragmentObj, nodesList):
     nodeIdToInternalIdToArticyObj = {}
     nodeIdToTargetToInternalId = {}
     globalNodeIdToObject = {}
@@ -485,9 +485,8 @@ def create_nodes_internals(articyApi, flowFragmentObj, nodesList):
         nodeId = node["id"]
         logger.info("Processing node {}".format(nodeId))
         if node["type"] == "Chapter":
-            articyObj = articyApi.create_flow_fragment(flowFragmentObj, nodeId, template="Chapter")
-            articyObj.SetExternalId(nodeId)
-            globalNodeIdToObject[nodeId] = articyObj
+            globalNodeIdToObject[nodeId] = chapterFlowFragmentObj
+            articyObj = chapterFlowFragmentObj
         else:
             articyObj = globalNodeIdToObject[nodeId]
             
@@ -610,6 +609,14 @@ def check_delete_create_variables(session, variables):
     #     logger.info("Var found: "+ str(varSet))
     # else:
     #     logger.info("Var not found")
+    
+def get_chapter_id(inputJson):
+    for node in inputJson[""]:
+        nodeId = node["id"]
+        logger.info("Processing node {}".format(nodeId))
+        if node["type"] == "Chapter":
+            articyObj = articyApi.create_flow_fragment(flowFragmentObj, nodeId, template="Chapter")
+            articyObj.SetExternalId(nodeId)
 
 def main():
     global ArticyApi
@@ -618,6 +625,7 @@ def main():
     parser.add_argument("--server", default="server0185.articy.com", help="Server URL")
     parser.add_argument("--server_port", type=int, default=13170, help="Server Port")
     parser.add_argument("--project", default="api_test_proj", help="The name of the project to import to")
+    parser.add_argument("--target_flow_fragment", help="The target flow fragment. Deletes the to be generated flow fragment if it exists before import. If none is given a new top level one is created.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable info logging")
     parser.add_argument("-vv", "--extra_verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("--auth_file", help="File with username on first line and password on second line")
@@ -626,16 +634,17 @@ def main():
     
     args = parser.parse_args()
     
+    topFragmentProjektName = None
+    if args.target_flow_fragment:
+        topFragmentProjektName = args.target_flow_fragment
+    
+    conn = None
     if args.callback_srv_on_complete:
         srvHost, srvPort = args.callback_srv_on_complete.split(":")
         
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn.connect((srvHost, int(srvPort)))
         
-        #conn = Client((srvHost, srvPort) , authkey=srvpass.decode("utf-8"))
-    else:
-        conn = None
-    
     try:
         
         _eval_parser_log_arguments(args)
@@ -708,12 +717,48 @@ def main():
                 
                 session.ClaimPartition( sysFolder.GetPartitionId() )
                 
-                newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
-    
-                logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
-                f1 = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
-                create_nodes_internals(articyApi, f1, sourceObj["nodes"])
-                logger.info("Finished creating flow in flow fragment {}".format(newFragmentNm))
+                parentFragment = None
+                
+                chapterId = None
+                for node in sourceObj["nodes"]:
+                    if node["type"] == "Chapter":
+                        chapterId =  node["id"]
+                        
+                if chapterId == None:
+                    raise RuntimeError("No chapter node found in script")
+                
+                if topFragmentProjektName:
+                    for topLvlFragment in sysFolder.GetChildren():
+                        if topLvlFragment.GetDisplayName() == topFragmentProjektName:
+                            parentFragment = topLvlFragment
+                    if parentFragment == None:
+                        raise RuntimeError("Cant find top level fragment with name {}".format(topFragmentProjektName))
+                    logger.info("Found top level flow fragment with name {}".format(topFragmentProjektName))
+                    
+                    foundChapter = None
+                    for aChaptFragment in list(parentFragment.GetChildren()):
+                        if aChaptFragment.GetDisplayName() == chapterId:
+                            foundChapter = aChaptFragment
+                    if foundChapter:
+                        logger.info("Deleting old chapter with name {}. Technical name: {}".format(foundChapter.GetDisplayName(), foundChapter.GetTechnicalName()))
+                        session.DeleteObject(foundChapter)
+                    else:
+                        logger.info("No old chapter with name {} was deleted as none was found".format(chapterId))
+                
+                if parentFragment == None:
+                    newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
+                    logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
+                    parentFragment = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
+                    
+                chapterFragment = articyApi.create_flow_fragment(parentFragment, chapterId, template="Chapter")
+                chapterFragment.SetExternalId(chapterId)
+                logger.info("Created new chapter flow fragment with name {}".format(chapterId))
+                if topFragmentProjektName:
+                    articyApi.create_internal_connection(parentFragment, chapterFragment)
+                    logger.info("Created connection between top level and chapter flow fragment")
+                
+                create_nodes_internals(articyApi, chapterFragment, sourceObj["nodes"])
+                logger.info("Finished creating flow in flow fragment {}".format(parentFragment.GetDisplayName()))
         except:
             logger.info("Error occurred. Stacktrace: ", exc_info=True )
             raise

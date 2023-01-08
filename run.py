@@ -58,7 +58,7 @@ def prog3r():
 def prog3t():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred", "--target_flow_fragment", "One"]
     cli.run_populator_main()
     
 def prog5r():
@@ -83,15 +83,7 @@ def prog6r():
     
     tools.generate_audio_recording_files_cli()
     
-def prog7r():
-    #logging.basicConfig(level=logging.DEBUG)
-    
-    # parser.add_argument("input_file", help="The input document file")
-    # parser.add_argument("project_directory", help="The directory of the project")
-    # parser.add_argument("--gauth", required=True, help="The google server json credentials file")
-    # parser.add_argument("--articy-config", required=True, help="Json file containing the the artiyc configuration. Required keys:")
-    # parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
-    
+def prog7t():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\tts_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir"]
@@ -107,5 +99,5 @@ if __name__ == '__main__':
     #prog3r()
     prog3t()
     #prog6r()
-    #prog7r()
+    #prog7t()
     

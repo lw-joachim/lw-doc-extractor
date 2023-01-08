@@ -341,8 +341,6 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     shutil.copy(scriptInputFile, os.path.join(scriptDir, f"{chapterId}.docx"))
     shutil.copy(tmpRawOutFile, os.path.join(scriptDir, f"{chapterId}_raw.txt"))
     
-    generate_audio_recording_files(compOutDict, audioScriptDir)
-    
     targetProject = articyConfig["test_project"] if dryRun else articyConfig["project"]
     
     authFile = os.path.join(tmpDir, "authfile")
@@ -350,7 +348,9 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     with open(authFile, "w") as fh:
         fh.write("{}\n{}".format(articyConfig["user"], articyConfig["password"]))
     
-    cli.run_populator(tmpCompOutFile, targetProject, "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
+    cli.run_populator(tmpCompOutFile, targetProject, "One", "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
+
+    generate_audio_recording_files(compOutDict, audioScriptDir)
 
     if not dryRun:
         generate_audio_files(get_all_lines(compOutDict), genAudioDir, googleAuthFile)
@@ -364,7 +364,7 @@ def update_story_chapter_cli():
     parser.add_argument("--gauth", required=True, help="The google server json credentials file")
     parser.add_argument("--articy-config", required=True, help="Json file containing the the artiyc configuration. Required keys:")
     parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
-    parser.add_argument("--dry-run-dir", help="A directory that can be specified that will be used instead of a temporary directory for debugging")
+    parser.add_argument("--dry-run-dir", help="A directory that can be specified that will be used instead of a temporary directory for debugging. Only can be used in combination with dry-run")
     
     k3logging.set_parser_log_arguments(parser)
 
