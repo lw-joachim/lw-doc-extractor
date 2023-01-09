@@ -358,11 +358,11 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     logger.info("Update story chapter process complete")
     
 def update_story_chapter_cli():
-    parser = argparse.ArgumentParser(description="Update story chapter in project. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Update story chapter in project. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("input_file", help="The input document file")
     parser.add_argument("project_directory", help="The directory of the project")
-    parser.add_argument("--gauth", required=True, help="The google server json credentials file")
-    parser.add_argument("--articy-config", required=True, help="Json file containing the the artiyc configuration. Required keys:")
+    parser.add_argument("--gauth", required=True, help="The google server json credentials file. Required.")
+    parser.add_argument("--articy-config", required=True, help="Json file containing the the articy configuration. Parameter is required. Required keys are:\ntest_project, project: the test and production articy projects\nuser, password: the articy username and pass\nserver_host, server_port: articy server host and port\niron_python: iron python exe path\narticy_api_lib: path to the articy api")
     parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
     parser.add_argument("--dry-run-dir", help="A directory that can be specified that will be used instead of a temporary directory for debugging. Only can be used in combination with dry-run")
     
