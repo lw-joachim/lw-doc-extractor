@@ -97,7 +97,7 @@ def prog7t():
 if __name__ == '__main__':
     #prog1r()
     #prog3r()
-    prog3t()
+    #prog3t()
     #prog6r()
-    #prog7t()
+    prog7t()
     

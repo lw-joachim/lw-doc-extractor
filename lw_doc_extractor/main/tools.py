@@ -265,7 +265,7 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
             mappedSpeakerToVoiceMap[lineDict["speaker"]] = voice, speed, pitch
         
         speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
-        time.sleep(0.05)
+        time.sleep(0.4)
         
     logger.info(f"Finished generating {numLines} audio files")
         
