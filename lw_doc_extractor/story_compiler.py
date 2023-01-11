@@ -385,7 +385,7 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                     for cDict in instrPrmDict["choices"]:
                         internal_id = nodeId+"_"+str(len(instructions))
                         childIntIds.append(internal_id)
-                        choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : None, "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
+                        choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : cDict["stage_directions"], "line_attributes" : cDict["line_attributes"], "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
                         extCId = get_dialog_line_id(instrPrmDict["entity_name"], cDict["menu_text"], cDict["stage_directions"], cDict["spoken_text"])
                         instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": extCId}
                         instructions.append(instrDict)

@@ -65,7 +65,8 @@ def get_all_lines(compOutDict):
                                "parent_node_id" : n["id"],
                                "speaker" : intrDict["parameters"]["entity_name"],
                                "text" : intrDict["parameters"]["spoken_text"],
-                               "stage_directions" : intrDict["parameters"]["stage_directions"]}
+                               "stage_directions" : intrDict["parameters"]["stage_directions"],
+                               "line_attributes" : intrDict["parameters"]["line_attributes"]}
                 for k, v in diaLineDict.items():
                     if k == "stage_directions":
                         continue
@@ -379,4 +380,62 @@ def update_story_chapter_cli():
         tmpDir = tmpDirHandle.name
     
     update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir)
+    
+def sort_audio_files_by_emotion_cli():
+    parser = argparse.ArgumentParser(description="Sort audio files by emotion. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument("input_file", help="The compiler output json file")
+    parser.add_argument("input_audio_dir", help="The input directory with all audio files")
+    parser.add_argument("target_output_dir", help="The output directory into which the sorted files will be placed")
+    
+    k3logging.set_parser_log_arguments(parser)
+
+    args = parser.parse_args()
+    
+    k3logging.eval_parser_log_arguments(args)
+    
+    with open(args.input_file) as fh:
+        compOutDict = json.load(fh)
+    
+    
+    emotionToFileMap = {}
+    
+    lineDicts = get_all_lines(compOutDict)
+    
+    for lineDict in lineDicts:
+        if "emotion" in lineDict["line_attributes"]:
+            emotionVal = lineDict["line_attributes"]["emotion"]
+            if emotionVal not in emotionToFileMap:
+                emotionToFileMap[emotionVal] = []
+            
+            emotionToFileMap[emotionVal].append(lineDict["id"])
+        else:
+            if "default" not in emotionToFileMap:
+                emotionToFileMap["default"] = []
+            emotionToFileMap["default"].append(lineDict["id"])
+            
+    logger.info(f"Found the following emotions: {emotionToFileMap.keys()}")
+            
+    for em in sorted(emotionToFileMap.keys()):
+        emTarDir = os.path.join(args.target_output_dir, em)
+        
+        os.mkdir(emTarDir)
+        
+        for lineId in emotionToFileMap[em]:
+            
+            fileNm = f"{lineId}.mp3"
+            srcFilePath = os.path.join(args.input_audio_dir, fileNm)
+            
+            if not os.path.isfile(srcFilePath):
+                raise RuntimeError(f"Missing audio file {srcFilePath}")
+            
+            tarFilePath = os.path.join(emTarDir, fileNm)
+            shutil.copy(srcFilePath, tarFilePath)
+            logger.debug(f"Copied {srcFilePath} to {tarFilePath}")
+            
+        logger.info(f"Copied {len(emotionToFileMap[em])} audio files for emotion {em}")
+        
+    logger.info("Completed grouping audio files by emotion")
+    
+    
+    
     

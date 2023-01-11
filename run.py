@@ -48,6 +48,13 @@ def prog1r():
         old_sys_argv = sys.argv
         sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF.docx", "-o", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "-r", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF_raw.txt", "--debug_dir", "test_files/debug"]
     cli.main()
+    
+def prog1t():
+    print(socket.gethostname())
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF.docx", "-o", "test_files/compiler_output.json", "-r", "test_files/LF_raw.txt", "--debug_dir", "test_files/debug"]
+    cli.main()
 
 def prog3r():
     if "shoebill" == socket.gethostname():
@@ -92,6 +99,11 @@ def prog7t():
     finally:
         print("Done")
     
+def prog8t():
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", r"test_files\audio_out", r"test_files\audio_out_sorted", ]
+    tools.sort_audio_files_by_emotion_cli()
     
     
 if __name__ == '__main__':
@@ -99,5 +111,7 @@ if __name__ == '__main__':
     #prog3r()
     #prog3t()
     #prog6r()
-    prog7t()
+    #prog7t()
+    
+    prog8t()
     

@@ -73,12 +73,30 @@ class StatementTransformer(lark.Transformer):
                 elif item.data == "exit_instruction":
                     resp['exit_instruction'] = item.children[0].value.strip()
         return resp
+    
+    def line_attribute(self, items):
+        return items[0].children[0].value, items[0].children[1].value
         
     def simple_dialog_line(self, items):
         #return "DIALOG_LINE", items[0].value, items[1].value
-        ret = "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None})
+        ret = "DIALOG_LINE" , self._process_generic_statement_args(items, includesCondInst=True, defVals={"menu_text":None, "stage_directions" : None, "line_attributes" : {}})
+        
         if ret[1]["stage_directions"]:
             ret[1]["stage_directions"] = ret[1]["stage_directions"].strip("()").strip()
+            
+        for item in items:
+            if type(item) == lark.Tree:
+                if item.data == "line_attributes":
+                    usedKeys = []
+                    for lineAttrKey, lineAttrVal in item.children:
+                        if lineAttrKey in usedKeys:
+                            raise RuntimeError(f"Duplicate attribute '{lineAttrKey}' for line with text: '{ret[1]['spoken_text']}'")
+                        usedKeys.append(lineAttrKey)
+                        
+                        if lineAttrKey == "emotion" and lineAttrVal not in ["angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]:
+                            raise RuntimeError(f"Invalid attribute value '{lineAttrVal}' for attribute '{lineAttrKey}' for line with text: '{ret[1]['spoken_text']}'")
+                            
+                        ret[1]['line_attributes'][lineAttrKey] = lineAttrVal
         return ret
     
     def internal_jump_statement(self, items):
@@ -190,7 +208,7 @@ class StatementTransformer(lark.Transformer):
         return "HUB", items
     
     def player_choice(self, items):
-        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "condition" : None, "exit_instruction": None, "sequence" : None}
+        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "line_attributes" : {}, "condition" : None, "exit_instruction": None, "sequence" : None}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
@@ -209,6 +227,17 @@ class StatementTransformer(lark.Transformer):
                     returnDict["exit_instruction"] = item.children[0].value.strip()
                 elif item.data == "inner_sequence":
                     returnDict["sequence"] = item.children
+                elif item.data == "line_attributes":
+                    usedKeys = []
+                    for lineAttrKey, lineAttrVal in item.children:
+                        if lineAttrKey in usedKeys:
+                            raise RuntimeError(f"Duplicate attribute '{lineAttrKey}' for line with text: '{returnDict['spoken_text']}'")
+                        usedKeys.append(lineAttrKey)
+                        
+                        if lineAttrKey == "emotion" and lineAttrVal not in ["angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]:
+                            raise RuntimeError(f"Invalid attribute value '{lineAttrVal}' for attribute '{lineAttrKey}' for line with text: '{returnDict['spoken_text']}'")
+                            
+                        returnDict['line_attributes'][lineAttrKey] = lineAttrVal
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in player_choice")
             else:

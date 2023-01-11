@@ -21,11 +21,19 @@ internal_jump_statement : ">" REFERENCED_ID _NEWLINE
 external_jump_statement : "►" REFERENCED_ID _NEWLINE
 
 // dialog
-simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
+simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? line_attributes? _NEWLINE SPOKEN_TEXT COMMENT? _NEWLINE
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
-player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? _NEWLINE condition? exit_instruction? inner_sequence
+player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? line_attributes? _NEWLINE condition? exit_instruction? inner_sequence
+
+line_attributes :  "[" line_attribute ("," line_attribute)* "]"
+
+line_attribute : emotion_line_attribute
+
+emotion_line_attribute : /emotion/ ":" LINE_ATTIBUTE_VALUE
+
+LINE_ATTIBUTE_VALUE : /[^,\]]+/
 
 // inner statement
 ?inner_statement : "-" inner_statement_cmd _NEWLINE
@@ -59,7 +67,7 @@ REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
 ENTITY_NAME.-1 : /[A-Z][A-Z0-9\ ]{2,}/
 
-SPOKEN_TEXT: /[^\n\r\(]+/
+SPOKEN_TEXT: /[^\n\r\(\[]+/
 QUEST_ID : /[^\n\r]+/
 
 STATEMENT_DESCRIPTION : /[^\n\r\{]+/
