@@ -125,7 +125,7 @@ def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, al
 
 # creates new sequences for instructions for hub, dialog choide and if and
 # replaces instructions with references
-def flatten_sequences(sequenceIds, nodeDefnDict):
+def flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict):
     complexStatements = ["CHOICE_DIALOG", "IF", "HUB", "SHAC_CHOICE"]
 
     flatSequences = collections.OrderedDict()
@@ -134,6 +134,8 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
     seqPos = {}
     
     hubFound = False
+    
+    addedOnceVars = []
     
     for seqId in sequenceIds:
         if seqId == "start_sequence":
@@ -175,6 +177,11 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                             choiceSeqId = f"{seqId}~{cCount}~hubchoice"
                             choices.append({"sequence_ref": choiceSeqId})
                             addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]})
+                            if choice["once"]:
+                                varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+                                addedOnceVars.append(varNm)
+                                addInstr[1]["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+                                addInstr[1]["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = false" if choice["exit_instruction"] else  f"{varNm} = false"
                             flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
                             seqPos[choiceSeqId] = (len(seqPos), 1)
                         flatSequences[hubSeqId][0][1]["choices"] = choices
@@ -184,7 +191,12 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                         for cCount, choice in enumerate(choices):
                             choiceSeqId = f"{seqId}~{cCount}~dialogchoice"
                             flatSequences[choiceSeqId] = choice.pop("sequence")
-                            choice["sequence_ref"] = choiceSeqId    
+                            choice["sequence_ref"] = choiceSeqId
+                            if choice["once"]:
+                                varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+                                addedOnceVars.append(varNm)
+                                choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+                                choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = false" if choice["exit_instruction"] else  f"{varNm} = false"
                             seqPos[choiceSeqId] = (len(seqPos), i+1)
                         cpyDict = dict(inst[1])
                         cpyDict["choices"] = choices
@@ -212,7 +224,7 @@ def flatten_sequences(sequenceIds, nodeDefnDict):
                     logger.warning(f"Error occurred in sequence {seqId} while processing instruction {i}: {inst}")
                     raise
                 
-    return flatSequences, seqPos
+    return flatSequences, seqPos, addedOnceVars
 
 def _collapse_links(sequences, allNodeIds):
     retDict = {}
@@ -297,7 +309,7 @@ def _check_embeded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeI
             if nodeType == "SubSection" and embededType == "Section":
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
 
-def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
+def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
     nodeDefnDict = nodeIdToDefnDict[nodeId]
     # array to keep track of nodes that have been referenced to determine which have not
     nodesReferenced = []
@@ -312,7 +324,7 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
         for k in nodeDefnDict["referenced_sequences"]:
             sequenceIds.append(k)
         
-        flattenedSequences , sequenceStartPos = flatten_sequences(sequenceIds, nodeDefnDict)
+        flattenedSequences , sequenceStartPos, addedOnceVars = flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict)
         #print(json.dumps(flattenedSequences, indent=2))
         sequenceStartPos = {}
         
@@ -543,7 +555,9 @@ def process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, n
                     "external_links": externalLinks,
                     "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in seqenceToNodeIntId.items() if "~" not in seqId},
                     "target_to_multiple_internal_id" : { seqId : tarList for seqId, tarList in sequenceToMultipleIntId.items()} }
-        return resDict
+        if len(addedOnceVars) > 0:
+            logger.debug(f"Added {len(addedOnceVars)} variable for options that will only be used once")
+        return resDict, addedOnceVars
     except Exception as e:
         logger.warning(f"Error while processing node {nodeId}")
         raise
@@ -629,12 +643,19 @@ def _getCharacterList(nodesList):
                 characterSet.add(instr["parameters"]["entity_name"])
     return list(characterSet)
 
-def _getNodeIdToVariableList(nodesList):
+def _getNodeIdToVariableList(nodesList, addedOnceVars):
     variableDict = {}
     varSet = set()
     for n in nodesList:
         #if n["variables"] is not None:
         variableDict[n["id"].replace("-", "_")] = n["variables"]
+        
+    for addedVar in addedOnceVars:
+        nodeId, varNm = addedVar.split(".")
+        nodeIdForm = nodeId.replace("-", "_")
+        if nodeIdForm not in variableDict:
+            variableDict[nodeIdForm] = []
+        variableDict[nodeIdForm].append({"variable_name": varNm, "variable_default_value": False, "description": None, "variable_type": "bool"})
     #print(json.dumps(variableDict, indent=2))
     return variableDict
 
@@ -750,6 +771,7 @@ def compile_story(ast):
     errNodes = set()
     resDict = {"nodes" : []}
     allNodeIds = list(nodeToDefnDict.keys())
+    allAddedOnceVars = []
     for nodeId in nodeIdProcessingOrder:
         parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
         childIds = nodeIdToChildIdsDict[nodeId] if nodeId in nodeIdToChildIdsDict else []
@@ -759,7 +781,8 @@ def compile_story(ast):
         logger.info(f"Processing internal logic of node {nodeId}")
         logger.debug(f"Parent: {parentId}, children: {childIds}")
         try:
-            nodeDict = process_node(nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
+            nodeDict, addedOnceVars = process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
+            allAddedOnceVars.extend(addedOnceVars)
             resDict["nodes"].append(nodeDict)
         except Exception as e:
             logger.exception(f"Error in node {nodeId}")
@@ -776,7 +799,7 @@ def compile_story(ast):
     resDict["characters"].sort()
     logger.info("Getting character list complete")
     logger.info("Getting variable list")
-    resDict["variables"] = _getNodeIdToVariableList(ast["nodes"])
+    resDict["variables"] = _getNodeIdToVariableList(ast["nodes"], allAddedOnceVars)
     logger.info("Getting variable list complete")
     _validateVariables(resDict["variables"], resDict["nodes"])
     logger.info("Validating variables complete")

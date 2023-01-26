@@ -192,10 +192,8 @@ class StatementTransformer(lark.Transformer):
                 elif item.type == "EVENT_ID":
                     returnDict["event_id"] = item.value.strip().replace(" ", "_")
                 elif item.type == "CHOICE_SINGLE":
-                    print(item.value)
                     returnDict["once"] = True
                 elif item.type == "CHOICE_INFINITE":
-                    print(item.value)
                     returnDict["once"] = False
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
@@ -226,10 +224,8 @@ class StatementTransformer(lark.Transformer):
                 elif item.type == "STAGE_DIRECTIONS":
                     returnDict["stage_directions"] = item.value.strip("()").strip()
                 elif item.type == "CHOICE_SINGLE":
-                    print(item.value)
                     returnDict["once"] = True
                 elif item.type == "CHOICE_INFINITE":
-                    print(item)
                     returnDict["once"] = False
                 else:
                     #logger.warning("Unexpected token in ")
@@ -263,9 +259,6 @@ class StatementTransformer(lark.Transformer):
         return items
     
     def choice_dialog_statement(self, items):
-        if type(items[1]) == lark.Tree:
-            print(items[1])
-            return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[2]}
         return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[1]}
     
     def sequence(self, items):
