@@ -9,7 +9,7 @@ shac_choice : "Θ" STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? ex
 
 // hub
 hub_statement_block :  "-" "HUB" _NEWLINE hub_choice+ "HUB_CHOICE_END" _NEWLINE
-hub_choice : "Θ" STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? exit_instruction? inner_sequence
+hub_choice : (CHOICE_SINGLE | CHOICE_INFINITE) STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? exit_instruction? inner_sequence
 
 // if
 if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "END_IF" _NEWLINE
@@ -25,7 +25,7 @@ simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? line_attributes? _NEWLINE 
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
-player_choice : "Θ" "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? line_attributes? _NEWLINE condition? exit_instruction? inner_sequence
+player_choice : (CHOICE_SINGLE | CHOICE_INFINITE) "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? line_attributes? _NEWLINE condition? exit_instruction? inner_sequence
 
 line_attributes :  "[" line_attribute ("," line_attribute)* "]"
 
@@ -56,6 +56,9 @@ the_end_statement : "THE_END" STATEMENT_DESCRIPTION?
 start_quest_statement : "START_QUEST" QUEST_ID
 end_quest_statement : "END_QUEST" QUEST_ID
 
+//
+CHOICE_SINGLE : "Θ"
+CHOICE_INFINITE : "∞"
 
 //conditions
 condition : "IF" REST_OF_LINE _NEWLINE

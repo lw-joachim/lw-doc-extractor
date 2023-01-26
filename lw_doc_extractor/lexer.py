@@ -45,6 +45,8 @@ _GRAMMAR_FOLDER = os.path.join(_FILE_LOC, "grammar_definitions")
 # """, start='script', parser='earley')
 
 class StatementTransformer(lark.Transformer):
+    
+    VALID_LINE_EMOTIONS = ["neutral", "angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]
 
     def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False, defVals={}, transMap={}):
         resp = {}
@@ -93,7 +95,7 @@ class StatementTransformer(lark.Transformer):
                             raise RuntimeError(f"Duplicate attribute '{lineAttrKey}' for line with text: '{ret[1]['spoken_text']}'")
                         usedKeys.append(lineAttrKey)
                         
-                        if lineAttrKey == "emotion" and lineAttrVal not in ["angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]:
+                        if lineAttrKey == "emotion" and lineAttrVal not in StatementTransformer.VALID_LINE_EMOTIONS:
                             raise RuntimeError(f"Invalid attribute value '{lineAttrVal}' for attribute '{lineAttrKey}' for line with text: '{ret[1]['spoken_text']}'")
                             
                         ret[1]['line_attributes'][lineAttrKey] = lineAttrVal
@@ -182,13 +184,19 @@ class StatementTransformer(lark.Transformer):
         return "SHAC_CHOICE", items
     
     def hub_choice(self, items):
-        returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None, "event_id" : None}
+        returnDict = {"choice_description" : None, "condition" : None, "exit_instruction": None, "sequence" : None, "event_id" : None, "once" : False}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "STATEMENT_DESCRIPTION":
                     returnDict["choice_description"] = item.value.strip()
                 elif item.type == "EVENT_ID":
                     returnDict["event_id"] = item.value.strip().replace(" ", "_")
+                elif item.type == "CHOICE_SINGLE":
+                    print(item.value)
+                    returnDict["once"] = True
+                elif item.type == "CHOICE_INFINITE":
+                    print(item.value)
+                    returnDict["once"] = False
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
             elif type(item) == lark.Tree:
@@ -208,7 +216,7 @@ class StatementTransformer(lark.Transformer):
         return "HUB", items
     
     def player_choice(self, items):
-        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "line_attributes" : {}, "condition" : None, "exit_instruction": None, "sequence" : None}
+        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "line_attributes" : {}, "condition" : None, "exit_instruction": None, "sequence" : None, "once": False}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
@@ -217,6 +225,12 @@ class StatementTransformer(lark.Transformer):
                     returnDict["spoken_text"] = item.value.strip()
                 elif item.type == "STAGE_DIRECTIONS":
                     returnDict["stage_directions"] = item.value.strip("()").strip()
+                elif item.type == "CHOICE_SINGLE":
+                    print(item.value)
+                    returnDict["once"] = True
+                elif item.type == "CHOICE_INFINITE":
+                    print(item)
+                    returnDict["once"] = False
                 else:
                     #logger.warning("Unexpected token in ")
                     raise RuntimeError(f"Unexpected token {item.type} in player_choice")
@@ -234,7 +248,7 @@ class StatementTransformer(lark.Transformer):
                             raise RuntimeError(f"Duplicate attribute '{lineAttrKey}' for line with text: '{returnDict['spoken_text']}'")
                         usedKeys.append(lineAttrKey)
                         
-                        if lineAttrKey == "emotion" and lineAttrVal not in ["angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]:
+                        if lineAttrKey == "emotion" and lineAttrVal not in StatementTransformer.VALID_LINE_EMOTIONS:
                             raise RuntimeError(f"Invalid attribute value '{lineAttrVal}' for attribute '{lineAttrKey}' for line with text: '{returnDict['spoken_text']}'")
                             
                         returnDict['line_attributes'][lineAttrKey] = lineAttrVal

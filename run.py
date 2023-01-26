@@ -59,7 +59,7 @@ def prog1t():
 def prog3r():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred", "--project", "OneArticy"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", "--auth_file", "test_files\mycred", "--project", "OneArticy", "--target_flow_fragment", "One"]
     cli.run_populator_main()
     
 def prog3t():
@@ -107,11 +107,11 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    #prog1r()
+    prog1r()
     #prog3r()
     #prog3t()
     #prog6r()
     #prog7t()
     
-    prog8t()
+    #prog8t()
     
