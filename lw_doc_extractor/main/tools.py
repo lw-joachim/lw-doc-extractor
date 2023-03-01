@@ -254,7 +254,7 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
     for i, lineDict in enumerate(lineDictList):
         if i % 20 == 0 and i != 0:
             logger.info(f"Generated {i} audio files out of {numLines}")
-        outfile = os.path.join(outputDirectory, lineDict["id"]+".mp3")
+        outfile = os.path.join(outputDirectory, lineDict["id"]+".wav")
         if lineDict["speaker"] in speakerToVoiceMap:
             voice, speed, pitch = speakerToVoiceMap[lineDict["speaker"]]
         elif lineDict["speaker"] in mappedSpeakerToVoiceMap:
@@ -296,7 +296,7 @@ def generate_audio_files_cli():
     
     logger.info(f"Final output written to {args.ouput_directory}")
     
-def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir):
+def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir, generateAudio):
     
     if not scriptInputFile.endswith(".docx") or not os.path.isfile(scriptInputFile):
         raise RuntimeError(f"Input file is not a valid docx file: {scriptInputFile}")
@@ -356,7 +356,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
 
     generate_audio_recording_files(compOutDict, audioScriptDir)
 
-    if not dryRun:
+    if generateAudio:
         generate_audio_files(get_all_lines(compOutDict), genAudioDir, googleAuthFile)
         
     logger.info("Update story chapter process complete")
@@ -369,6 +369,7 @@ def update_story_chapter_cli():
     parser.add_argument("--articy-config", required=True, help="Json file containing the the articy configuration. Parameter is required. Required keys are:\ntest_project, project: the test and production articy projects\nuser, password: the articy username and pass\nserver_host, server_port: articy server host and port\niron_python: iron python exe path\narticy_api_lib: path to the articy api")
     parser.add_argument("--dry-run", action="store_true", help="If flag is set project directory will not be changed and import will happen into a test directory and test articy project")
     parser.add_argument("--dry-run-dir", help="A directory that can be specified that will be used instead of a temporary directory for debugging. Only can be used in combination with dry-run")
+    parser.add_argument("--dry-run-audio", action="store_true", help="Force generating audio in a dry run. Only can be used in combination with dry-run-dir")
     
     k3logging.set_parser_log_arguments(parser)
 
@@ -376,13 +377,16 @@ def update_story_chapter_cli():
     
     k3logging.eval_parser_log_arguments(args)
     
+    genrateAudio = True
     if args.dry_run and args.dry_run_dir:
         tmpDir = args.dry_run_dir
+        if not args.dry_run_audio:
+            genrateAudio = False
     else:
         tmpDirHandle = tempfile.TemporaryDirectory()
         tmpDir = tmpDirHandle.name
     
-    update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir)
+    update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir, genrateAudio)
     
 def sort_audio_files_by_emotion_cli():
     parser = argparse.ArgumentParser(description="Sort audio files by emotion. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=RawDescriptionHelpFormatter)

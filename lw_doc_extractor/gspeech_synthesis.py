@@ -46,7 +46,7 @@ class GTextToSpeechClient:
         )
     
         audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3,
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
             speaking_rate=speed, #1.0,
             pitch=pitch# 0.0, #  range [-20.0, 20.0]
         )

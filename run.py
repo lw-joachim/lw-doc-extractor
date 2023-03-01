@@ -16,7 +16,7 @@ def prog4():
     
     with open("test_files\lines.json") as fh:
         al = json.load(fh)
-    tools.generate_audio_files(al, "audio_out", "test_files\\tts_key.json")
+    tools.generate_audio_files(al, "audio_out", "test_files\\oo5_key.json")
     
 def prog2():
     logging.basicConfig(level=logging.DEBUG)
@@ -79,7 +79,7 @@ def prog5r():
     with open("test_files\\real\\lines.json") as fh:
         al = json.load(fh)
     # "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\\audio_out"
-    tools.generate_audio_files(al, "test_files\\audio_out", "test_files\\tts_key.json")
+    tools.generate_audio_files(al, "test_files\\audio_out", "test_files\\oo5_key.json")
     
 def prog6r():
     logging.basicConfig(level=logging.DEBUG)
@@ -93,7 +93,7 @@ def prog6r():
 def prog7t():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\tts_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir"]
+        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir"]#, "--dry-run-audio"]
     try:
         tools.update_story_chapter_cli()
     finally:
@@ -107,11 +107,11 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    prog1r()
+    #prog1r()
     #prog3r()
     #prog3t()
     #prog6r()
-    #prog7t()
+    prog7t()
     
     #prog8t()
     

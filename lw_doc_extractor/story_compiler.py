@@ -8,6 +8,7 @@ import collections
 import re
 import logging
 import binascii
+import hashlib
 import string
 
 logger = logging.getLogger(__name__)
@@ -23,13 +24,13 @@ VALID_DIGITS_FOR_ID = set()
 VALID_DIGITS_FOR_ID.update(string.digits)
 VALID_DIGITS_FOR_ID.update(string.ascii_letters)
 VALID_DIGITS_FOR_ID.add("_")
-VALID_DIGITS_FOR_ID.add("#")
 
-def _format_string(inpStr):
+
+def _format_string(inpStr, validDidgets):
     inpStr = "_".join(inpStr.split())
-    return ''.join(c for c in inpStr if c in VALID_DIGITS_FOR_ID)
+    return ''.join(c for c in inpStr if c in validDidgets)
 
-def get_dialog_line_id(enityName, menuText, stage_directions, lineText):
+def get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText):
     global _idToOccurenceTracker
     
     en = enityName.strip() if enityName else ""
@@ -38,24 +39,45 @@ def get_dialog_line_id(enityName, menuText, stage_directions, lineText):
     sd = stage_directions.strip() if stage_directions else ""
     
     crcStr1 = "{}#{}#{}".format(en, mt, lt)
+    
+    validIdsSet = set(VALID_DIGITS_FOR_ID)
+    validIdsSet.add("#")
         
-    resStr = _format_string(crcStr1)
+    resStr = _format_string(crcStr1, validIdsSet)
     
     acrc = binascii.crc32(crcStr1.encode("utf-8"))
     resHex = "{:08X}".format(acrc)
-    
     retStr = "{}#{}".format(resHex, resStr)
-    if len(retStr) > 64:
-        retStr = retStr[:64]
-        
-    if retStr in _idToOccurenceTracker:
-        num_occurances = _idToOccurenceTracker[retStr]
-        newRet = retStr + "_" + str(num_occurances)
-        _idToOccurenceTracker[retStr] = num_occurances + 1
-        retStr = newRet
-    else:
-         _idToOccurenceTracker[retStr] = 1
     return  retStr
+
+def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineText):
+    if chapterId == "LF" and False:
+        fileNm = get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText)
+    else:
+        
+        en = enityName.strip() if enityName else ""
+        mt = menuText.strip() if menuText else ""
+        lt = lineText.strip() if lineText else ""
+        
+        hashStr = "{}_{}_{}_{}".format(chapterId, en, mt, lt)
+        hashedStr = hashlib.sha256(hashStr.encode("utf-8")).hexdigest()[:12].upper()
+        
+        fileNm = "{}_{}_{}_{}_{}".format(hashedStr, chapterId, en, mt, lt)
+        fileNm = _format_string(fileNm, VALID_DIGITS_FOR_ID)
+    
+    if len(fileNm) > 64:
+        fileNm = fileNm[:64]
+        
+    if fileNm in _idToOccurenceTracker:
+        num_occurances = _idToOccurenceTracker[fileNm]
+        newRet = fileNm + "_" + str(num_occurances)
+        _idToOccurenceTracker[fileNm] = num_occurances + 1
+        fileNm = newRet
+    else:
+        _idToOccurenceTracker[fileNm] = 1
+    
+    return fileNm
+    
 
 def build_node_hierarchy(rootNodeId, nodeToDefnDict):
     nodeIdToParentIdDict = {}
@@ -181,7 +203,7 @@ def flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict):
                                 varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
                                 addedOnceVars.append(varNm)
                                 addInstr[1]["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
-                                addInstr[1]["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = false" if choice["exit_instruction"] else  f"{varNm} = false"
+                                addInstr[1]["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
                             flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
                             seqPos[choiceSeqId] = (len(seqPos), 1)
                         flatSequences[hubSeqId][0][1]["choices"] = choices
@@ -196,7 +218,7 @@ def flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict):
                                 varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
                                 addedOnceVars.append(varNm)
                                 choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
-                                choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = false" if choice["exit_instruction"] else  f"{varNm} = false"
+                                choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
                             seqPos[choiceSeqId] = (len(seqPos), i+1)
                         cpyDict = dict(inst[1])
                         cpyDict["choices"] = choices
@@ -398,7 +420,7 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOut
                         internal_id = nodeId+"_"+str(len(instructions))
                         childIntIds.append(internal_id)
                         choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : cDict["stage_directions"], "line_attributes" : cDict["line_attributes"], "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
-                        extCId = get_dialog_line_id(instrPrmDict["entity_name"], cDict["menu_text"], cDict["stage_directions"], cDict["spoken_text"])
+                        extCId = get_dialog_line_id(chapterNodeId, instrPrmDict["entity_name"], cDict["menu_text"], cDict["stage_directions"], cDict["spoken_text"])
                         instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": extCId}
                         instructions.append(instrDict)
                         instructionPos.append((seqPosX+intrPosCnt, seqPosY))
@@ -456,7 +478,7 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOut
                         entTxt = instrPrmDict["spoken_text"]
                         nmuTxt = instrPrmDict["menu_text"]
                         dsTxt = instrPrmDict["stage_directions"]
-                        extId = get_dialog_line_id(entNm, nmuTxt, dsTxt, entTxt)
+                        extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
                     
                     instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": extId}
                     instructions.append(instrDict)
