@@ -42,7 +42,7 @@ def get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText):
     
     validIdsSet = set(VALID_DIGITS_FOR_ID)
     validIdsSet.add("#")
-        
+    
     resStr = _format_string(crcStr1, validIdsSet)
     
     acrc = binascii.crc32(crcStr1.encode("utf-8"))
@@ -59,11 +59,10 @@ def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineTex
         mt = menuText.strip() if menuText else ""
         lt = lineText.strip() if lineText else ""
         
-        hashStr = "{}_{}_{}_{}".format(chapterId, en, mt, lt)
-        hashedStr = hashlib.sha256(hashStr.encode("utf-8")).hexdigest()[:12].upper()
+        fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, lt))
+        hashedStr = hashlib.sha256(fileNmWoHash.encode("utf-8")).hexdigest()[:12].upper()
         
-        fileNm = "{}_{}_{}_{}_{}".format(hashedStr, chapterId, en, mt, lt)
-        fileNm = _format_string(fileNm, VALID_DIGITS_FOR_ID)
+        fileNm = "{}_{}".format(hashedStr, fileNmWoHash)
     
     if len(fileNm) > 64:
         fileNm = fileNm[:64]
