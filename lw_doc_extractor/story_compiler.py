@@ -59,7 +59,7 @@ def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineTex
         mt = menuText.strip() if menuText else ""
         lt = lineText.strip() if lineText else ""
         
-        fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, lt))
+        fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, lt), VALID_DIGITS_FOR_ID)
         hashedStr = hashlib.sha256(fileNmWoHash.encode("utf-8")).hexdigest()[:12].upper()
         
         fileNm = "{}_{}".format(hashedStr, fileNmWoHash)

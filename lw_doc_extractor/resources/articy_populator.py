@@ -222,6 +222,53 @@ class ArticyApiWrapper:
         articyObj = self.session.CreateEntity(parent_folder, character_name)
         articyObj.SetExternalId(character_name)
         self.int_char_dict = self.get_character_name_to_obj_dict()
+        
+    def get_node_external_connections(self, nodeObj):
+        parentChildren = nodeObj.GetParent().GetChildren()
+        print("parentChildren")
+        print(parentChildren)
+        
+        allConn = []
+        for parentChild in parentChildren:
+            if parentChild.ObjectType == Articy.Api.ObjectType.Connection:
+                allConn.append(parentChild)
+            
+            #''artObj.ObjectType == ObjectType.Connection
+        
+        print("Connections")
+        print(allConn)
+        
+        inpuntPins = nodeObj.GetInputPins()
+        outputPins = nodeObj.GetOutputPins()
+        
+        selfConnections = []
+        
+        inputConnections = []
+        
+        for inputPin in inpuntPins:
+            for conn in allConn:
+                #print("{}: {}".format(inputPin.Id, conn["TargetPin"].Id))
+                if inputPin.Id == conn["TargetPin"].Id:
+                    # if the target pin is one of the input connections
+                    if conn["Source"] == nodeObj:
+                        selfConnections.append((conn["SourcePin"]["PinIndex"], conn["TargetPin"]["PinIndex"]))
+                    else:
+                        inputConnections.append((conn["Source"], conn["SourcePin"]["PinIndex"], conn["TargetPin"]["PinIndex"]))
+                    
+        
+        
+        outputConnections = []
+        
+        for outputPin in outputPins:
+            for conn in allConn:
+                if outputPin.Id == conn["SourcePin"].Id:
+                    # if the originating pin is one of the output connections
+                    if conn["Target"] == nodeObj:
+                        continue
+                    outputConnections.append((conn["Target"], conn["SourcePin"]["PinIndex"], conn["TargetPin"]["PinIndex"]))
+
+        return inputConnections, outputConnections, selfConnections
+        
 
 def _eval_parser_log_arguments(args):
     msgFormat='%(asctime)s %(name)s %(levelname)s:  %(message)s'
@@ -740,16 +787,18 @@ def main():
                         if aChaptFragment.GetDisplayName() == chapterId:
                             foundChapter = aChaptFragment
                     if foundChapter:
+                        foundChapterInConnections, foundChapterOutConnections, foundSelfConnection = articyApi.get_node_external_connections(foundChapter)
+                        logger.info("Found {}, {} and {} incoming, outgoing and self links respectively".format(len(foundChapterInConnections), len(foundChapterOutConnections), len(foundSelfConnection)))
                         logger.info("Deleting old chapter with name {}. Technical name: {}".format(foundChapter.GetDisplayName(), foundChapter.GetTechnicalName()))
                         session.DeleteObject(foundChapter)
                     else:
                         logger.info("No old chapter with name {} was deleted as none was found".format(chapterId))
                 
                 if parentFragment == None:
-                    newFragmentNm = "new_import_from_" + str(datetime.datetime.now().replace(microsecond=0).isoformat())
+                    newFragmentNm = "new_import_{}_from_{}".format(chapterId, str(datetime.datetime.now().replace(microsecond=0).isoformat()))
                     logger.info("Creating flow in new top level flow fragment: {}".format(newFragmentNm))
                     parentFragment = articyApi.create_flow_fragment(sysFolder, newFragmentNm)
-                    
+                
                 chapterFragment = articyApi.create_flow_fragment(parentFragment, chapterId, template="Chapter")
                 chapterFragment.SetExternalId(chapterId)
                 logger.info("Created new chapter flow fragment with name {}".format(chapterId))
@@ -758,7 +807,34 @@ def main():
                     logger.info("Created connection between top level and chapter flow fragment")
                 
                 create_nodes_internals(articyApi, chapterFragment, sourceObj["nodes"])
-                logger.info("Finished creating flow in flow fragment {}".format(parentFragment.GetDisplayName()))
+                logger.info("Finished creating flow of flow fragment {} in flow fragment {}".format(chapterId, parentFragment.GetDisplayName()))
+                
+                if foundChapter:
+                    #chapterFragment = foundChapter
+                    for inConn in foundChapterInConnections:
+                        if inConn[0] == parentFragment:
+                            articyApi.create_internal_connection(parentFragment, chapterFragment)
+                        else:
+                            articyApi.create_connection(inConn[0], chapterFragment, inConn[1])
+                        logger.info("Created an input connection from: {}, {} -> {}, {}".format(inConn[0].GetTechnicalName(), inConn[1], chapterFragment.GetTechnicalName(), inConn[2]))
+                    
+                    maxOutPinIdx = 0
+                    for outConn in foundChapterOutConnections:
+                        outPinIdx = outConn[1]
+                        while outPinIdx > maxOutPinIdx:
+                            chapterFragment.AddOutputPin()
+                            maxOutPinIdx += 1
+                        if outConn[0] == parentFragment:
+                            articyApi.create_internal_return_connection(chapterFragment, parentFragment, outConn[1], outConn[2])
+                        else:
+                            articyApi.create_connection(chapterFragment, outConn[0], outConn[1])
+                        logger.info("Created an output connection from: {}, {} -> {}, {}".format(chapterFragment.GetTechnicalName(), outConn[1], outConn[0].GetTechnicalName(), outConn[2]))
+                        
+                    for sSonn in foundSelfConnection:
+                        articyApi.create_connection(chapterFragment, chapterFragment, sSonn[0])
+                        logger.info("Created a self connection from: {}, {} -> {}, {}".format(chapterFragment.GetTechnicalName(), sSonn[0], chapterFragment.GetTechnicalName(), sSonn[1]))
+                    logger.info("Finished reconnecting flow fragment {}".format(chapterId))
+                
         except:
             logger.info("Error occurred. Stacktrace: ", exc_info=True )
             raise

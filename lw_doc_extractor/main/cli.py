@@ -60,7 +60,6 @@ def run_populator(compilerOutputInputFile, project="api_test_proj", target_flow_
     if target_flow_fragment:
         runArgs.extend(["--target_flow_fragment", target_flow_fragment])
         
-    print(runArgs)
     logger.info("Running cmd: {}".format(' '.join([str(e) for e in runArgs])))
     subprocess.run(runArgs, shell=True)
     
@@ -105,8 +104,6 @@ def run_main(sriptInputFile, outputPath, rawOutputPath=None, imgOutputPath=None,
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
-            
-    outputDirPath = os.path.dirname(outputPath)
     
     ast, lines = doc_parser.parse(sriptInputFile, imgOutputPath)
     
