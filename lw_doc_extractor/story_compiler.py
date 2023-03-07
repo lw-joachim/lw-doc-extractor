@@ -330,6 +330,333 @@ def _check_embeded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeI
             if nodeType == "SubSection" and embededType == "Section":
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
 
+def process_instruction(chapterNodeId, instructionId, intructionType, instructionParameterDictionary):
+    processedInstruction = None
+    addedOnceVars = []
+    customPinsForSubSequenceMap = {}
+    subSequencesMap = collections.OrderedDict()
+    if intructionType =="CHOICE_DIALOG":
+        choices = [dict(c) for c in instructionParameterDictionary["choices"]]
+        choiceSequenceIds = []
+        for cCount, choice in enumerate(choices):
+            choiceSeqId = f"{instructionId}_dc{cCount}"
+            choiceSequenceIds.append(choiceSeqId)
+            if choice["once"]:
+                varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+                addedOnceVars.append(varNm)
+                choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+                choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
+            
+            choiceInstrPrm = {"entity_name": instructionParameterDictionary["entity_name"], "menu_text" : choice["menu_text"], "spoken_text": choice["spoken_text"], "stage_directions" : choice["stage_directions"], "line_attributes" : choice["line_attributes"], "condition": choice["condition"], "exit_instruction": choice["exit_instruction"]}
+            extCId = get_dialog_line_id(chapterNodeId, instructionParameterDictionary["entity_name"], choice["menu_text"], choice["stage_directions"], choice["spoken_text"])
+            choiceInternalId = choiceSeqId+"_init"+str(choiceSeqId)
+            instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : choiceInternalId, "parameters" : choiceInstrPrm, "external_id": extCId}
+
+            subSequencesMap[choiceSeqId] = (choice["sequence"], instrDict)
+    elif intructionType == "HUB":
+        hubInstrPrms = {"hub_name" : f"{chapterNodeId}_HUB"}
+        processedInstruction = {"instruction_type" : "GENERIC_HUB", "internal_id" : instructionId, "parameters" : hubInstrPrms, "external_id": None}
+        
+        # note for HUB instrPrmDict is a list of choices :(
+        for cCount, choice in enumerate(instructionParameterDictionary):
+            choiceSeqId = f"{instructionId}_hc{cCount}"
+            coiceInstrDict = {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]}
+            
+            if choice["once"]:
+                varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+                addedOnceVars.append(varNm)
+                coiceInstrDict["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+                coiceInstrDict["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
+            choiceInternalId = choiceSeqId+"_gel"+str(choiceSeqId)
+            choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict}
+            
+            subSequencesMap[choiceSeqId] = (choice["sequence"], choiceInstrDict)
+    elif intructionType == "IF":
+        choiceSeqIdTrue = f"{instructionId}_true"
+        choiceSeqIdFalse = f"{instructionId}_false"
+        
+        subSequencesMap[choiceSeqIdTrue] = (instructionParameterDictionary["sequence_true"], None)
+        subSequencesMap[choiceSeqIdFalse] = (instructionParameterDictionary["sequence_false"], None)
+        
+        customPinsForSubSequenceMap[choiceSeqIdFalse] = 1
+        
+        ifInstrPrms = {"eval_condition": instructionParameterDictionary["eval_condition"]}
+        processedInstruction = {"instruction_type" : intructionType, "internal_id" : instructionId, "parameters" : ifInstrPrms, "external_id": None}
+        
+    else:
+        if intructionType == "NODE_REF":
+            extId = instructionParameterDictionary["id"]
+        elif intructionType == "DIALOG_LINE":
+            entNm = instructionParameterDictionary["entity_name"]
+            entTxt = instructionParameterDictionary["spoken_text"]
+            nmuTxt = instructionParameterDictionary["menu_text"]
+            dsTxt = instructionParameterDictionary["stage_directions"]
+            extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
+        
+        processedInstruction = {"instruction_type" : intructionType, "internal_id" : instructionId, "parameters" : instructionParameterDictionary, "external_id": extId}
+    
+    return processedInstruction, addedOnceVars, subSequencesMap, customPinsForSubSequenceMap
+            
+def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initialSequnceInstruction, isEmbeded):  
+    # Deleted todos:
+    #  - implement check that nothing follows a jump, hub, 
+    #  - node positioning
+    #  - hub sequence (for now assuming that a hub has its own sequence?!)
+    #  - removed anon sequence check
+    #  - removed multi hub check, check if hub is in x or y
+    #  - check nodes referenced removed
+    #  - nodesReferenced
+    #  - removed allowed types check
+    
+    instructions = []
+    internalLinks = []
+    
+    internalJumpsToProcess = []
+    externalJumpsToProcess = []
+    sequenceFaninsToProcess = []
+    
+    instructions.append(initialSequnceInstruction)
+    currIntNode = "{}_{}".format(sequenceId, "sqStart")
+    instructions.append({"instruction_type" : "SEQUENCE_NODE", "internal_id" : currIntNode, "parameters" : {"sequence_name":sequenceId}, "external_id": sequenceId})
+    
+    addedOnceVars = set()
+    
+    previousSequencesToContinueOnFrom = {}
+    
+    numberOfInstructions = len(instructionList)
+    
+    lastInstruction = False
+    
+    for i, aInstr in enumerate(instructionList):
+        if i == numberOfInstructions-1:
+            lastInstruction = True
+        instType, instrPrmDict = aInstr
+        
+        processedInstruction = None
+        newAddedOnceVars = []
+        newSequences = {}
+        customPinsForSubSequenceMap = {}
+        
+        if currIntNode == None and len(previousSequencesToContinueOnFrom) == 0:
+            raise RuntimeError("No current node and no sequences to continue on from")
+        
+        # if instType == "INTERNAL_JUMP" or instType == "EXTERNAL_JUMP" or instType =="CHOICE_DIALOG" or instType =="HUB":
+        #     if currIntNode == None:
+        #         internal_id = sequenceId+"_"+str(len(instructions))
+        #         instructions.append(instrDict = {"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to"}, "external_id": None})
+        #         currIntNode = internal_id
+        #         sequenceFaninsToProcess.append((previousSequencesToContinueOnFrom, currIntNode))
+        
+        if instType == "INTERNAL_JUMP":
+            internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
+            currIntNode = None
+            previousSequencesToContinueOnFrom = {}
+            continue
+        elif instType == "EXTERNAL_JUMP":
+            externalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
+            currIntNode = None
+            previousSequencesToContinueOnFrom = {}
+            continue
+        elif instType == "HUB":
+            if isEmbeded:
+                raise RuntimeError("Hubs cannot be used in embeded sequences")
+            if not lastInstruction:
+                raise RuntimeError("Hub needs to be the last instruction in a sequence")
+            hubSeqId = f"{nodeId}_Hub"
+            hubIntId = hubSeqId+"_0"
+            #internalJumpsToProcess.append((currIntNode, 0, hubSeqId))
+            
+            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, hubIntId, instType, instrPrmDict)
+
+            # hubSeqNodeInstrDict = {"instruction_type" : "SEQUENCE_NODE", "internal_id" : hubIntId, "parameters" : {"sequence_name":hubSeqId}, "external_id": hubSeqId}
+            # newSequences[hubSeqId] = ([hubSeqNodeInstrDict, processedInstruction], None)
+            # newSequences.update(newSubSequenceMap)
+            
+            
+        else:
+            instrId = "{}_{}".format(sequenceId, i)
+            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, instrId, instType, instrPrmDict)
+            
+        
+        addedOnceVars.update(set(newAddedOnceVars))
+        
+        if processedInstruction != None:
+            instructions.append(processedInstruction)
+            
+            if len(previousSequencesToContinueOnFrom) > 0:
+                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                    for prevSeqEndIntId in prevSeqEndIntIdList:
+                        internalLinks.append((prevSeqEndIntId, 0, processedInstruction["internal_id"]))
+                previousSequencesToContinueOnFrom.clear()
+            elif currIntNode != None:
+                internalLinks.append((currIntNode, 0, processedInstruction["internal_id"]))
+            # else:
+            #     if lastInstruction:
+            #         logger.debug(f"End of sequence {sequenceId} reached")
+            #     else:
+            #         raise RuntimeError(f"Invalid continuation for sequence {sequenceId} at instruction idx {i}")
+                
+            currIntNode = processedInstruction["internal_id"]
+            
+        
+        newSeqToContinueOnFrom = {}
+        for newSeqId in newSequences:
+            seqRawInstructions, initialInstr = newSequences[newSeqId]
+            seqInstructions, seqInternalLinks, seqIntJumps, seqExternalJumps, seqEndTrailingInternalIds = process_sequence(chapterNodeId, nodeId, sequenceId, seqRawInstructions, initialInstr, isEmbeded)
+            newSeqToContinueOnFrom[newSeqId] = seqEndTrailingInternalIds
+            
+            instructions.extend(seqInstructions)
+            internalLinks.extend(seqInternalLinks)
+            externalJumpsToProcess.extend(seqExternalJumps)
+            
+            ssPinIdx  = 0 if newSeqId not in customPinsForSubSequenceMap else customPinsForSubSequenceMap[newSeqId]
+            newSeqStartInstrIntId = seqInstructions[0]["internal_id"]
+            
+            if currIntNode != None:
+                internalLinks.append((currIntNode, ssPinIdx, newSeqStartInstrIntId))
+            else:
+                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                    for prevSeqEndIntId in prevSeqEndIntIdList:
+                        internalLinks.append((prevSeqEndIntId, 0, newSeqStartInstrIntId))
+            
+            newSeqToContinueOnFrom[newSeqId] = seqEndTrailingInternalIds
+            
+        if len(newSeqToContinueOnFrom) > 0:
+            currIntNode = None
+            previousSequencesToContinueOnFrom = newSeqToContinueOnFrom
+                
+    endTrailingInternalIds = [currIntNode]
+    if len(previousSequencesToContinueOnFrom) > 0:
+        endTrailingInternalIds = []
+        for seqId in previousSequencesToContinueOnFrom:
+            endTrailingInternalIds.extend(previousSequencesToContinueOnFrom[seqId])
+    
+    return instructions, internalLinks, internalJumpsToProcess, externalJumpsToProcess, endTrailingInternalIds
+        
+        
+        
+        
+        
+            
+    intIdWithJump = [srcIntId for srcIntId, _srcPinIdx, _tarSeq in internalJumpsToProcess]
+    intIdWithJump.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in externalJumpsToProcess]) 
+    
+    embededSequences = [prevSeq for prevSeq, _tarIntId in sequenceFaninsToProcess]
+    
+
+    for newSeqId in newSequences:
+        newSeqInstructions, newSiqnitialInstructions = newSequences[newSeqId]
+        process_sequence(chapterNodeId, nodeId, newSeqId, newSeqInstructions, newSiqnitialInstructions, newSeqId in embededSequences)
+        
+        
+        
+    return instructions, internalLinks, internalJumpsToProcess, externalJumpsToProcess , internalLinks
+            
+            
+        # elif instType =="CHOICE_DIALOG":
+        #     choices = [dict(c) for c in instrPrmDict["choices"]]
+        #     choiceSequenceIds = []
+        #     for cCount, choice in enumerate(choices):
+        #         choiceSeqId = f"{sequenceId}_{len(instructions)}_dc{cCount}"
+        #         choiceSequenceIds.append(choiceSeqId)
+        #         if choice["once"]:
+        #             varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+        #             addedOnceVars.append(varNm)
+        #             choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+        #             choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
+        #
+        #         choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : choice["menu_text"], "spoken_text": choice["spoken_text"], "stage_directions" : choice["stage_directions"], "line_attributes" : choice["line_attributes"], "condition": choice["condition"], "exit_instruction": choice["exit_instruction"]}
+        #         extCId = get_dialog_line_id(chapterNodeId, instrPrmDict["entity_name"], choice["menu_text"], choice["stage_directions"], choice["spoken_text"])
+        #         choiceInternalId = choiceSeqId+"_init"+str(choiceSeqId)
+        #         instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : choiceInternalId, "parameters" : choiceInstrPrm, "external_id": extCId}
+        #
+        #         newSequences[choiceSeqId] = (choice["sequence"], instrDict)
+        #
+        #         internalJumpsToProcess.append((currIntNode, 0, choiceSeqId))
+        #
+        #     currIntNode = None
+        #     previousSequencesToContinueOnFrom = choiceSequenceIds
+        #
+        # elif instType == "HUB":
+        #     hubSeqId = f"{nodeId}_Hub"
+        #     internalJumpsToProcess.append((currIntNode, 0, hubSeqId))
+        #     hubIntId = hubSeqId+"_0"
+        #     instrPrms = {"hub_name" : f"{internal_id}_HUB"}
+        #     instrDict = {"instruction_type" : "GENERIC_HUB", "internal_id" : hubIntId, "parameters" : instrPrms, "external_id": None}
+        #
+        #     # note for HUB instrPrmDict is a list of choices :(
+        #     for cCount, choice in enumerate(instrPrmDict):
+        #         choiceSeqId = f"{hubSeqId}_hc{cCount}"
+        #         coiceInstrDict = {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]}
+        #
+        #         if choice["once"]:
+        #             varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
+        #             addedOnceVars.append(varNm)
+        #             coiceInstrDict["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
+        #             coiceInstrDict["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
+        #         choiceInternalId = choiceSeqId+"_gel"+str(choiceSeqId)
+        #         choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict}
+        #
+        #         newSequences[choiceSeqId] = (choice["sequence"], choiceInstrDict)
+        #
+        #         internalJumpsToProcess.append((hubIntId, 0, choiceSeqId))
+        #
+        #     newSequences[hubSeqId] = ([instrDict], None)
+        #
+        #     currIntNode = None
+        #     previousSequencesToContinueOnFrom = []
+        #
+        # elif instType == "IF":
+        #     internal_id = sequenceId+"_"+str(len(instructions))
+        #     if currIntNode == None:
+        #         sequenceFaninsToProcess.append((previousSequencesToContinueOnFrom, internal_id))
+        #     currIntNode = internal_id
+        #     previousSequencesToContinueOnFrom = []
+        #
+        #     choiceSeqIdTrue = f"{sequenceId}_{len(instructions)}_true"
+        #     choiceSeqIdFalse = f"{sequenceId}_{len(instructions)}_false"
+        #
+        #     newSequences[choiceSeqIdTrue] = (instrPrmDict["sequence_true"], None)
+        #     newSequences[choiceSeqIdFalse] = (instrPrmDict["sequence_false"], None)
+        #
+        #     internalJumpsToProcess.append((internal_id, 0, choiceSeqIdTrue))
+        #     internalJumpsToProcess.append((internal_id, 1, choiceSeqIdFalse))
+        #
+        #     instrPrms = {"eval_condition": instrPrmDict["eval_condition"]}
+        #     instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": None}
+        #     instructions.append(instrDict)
+        #
+        #     currIntNode = None
+        #     previousSequencesToContinueOnFrom = [choiceSeqIdTrue, choiceSeqIdFalse]
+        # else:
+        #     instrPrms = instrPrmDict
+        #     extId = None
+        #     internal_id = sequenceId+"_"+str(len(instructions))
+        #     if currIntNode == None:
+        #         sequenceFaninsToProcess.append((previousSequencesToContinueOnFrom, internal_id))
+        #
+        #     currIntNode = internal_id
+        #     previousSequencesToContinueOnFrom = []
+        #
+        #     if instType == "NODE_REF":
+        #         extId = instrPrmDict["id"]
+        #     elif instType == "DIALOG_LINE":
+        #         entNm = instrPrmDict["entity_name"]
+        #         entTxt = instrPrmDict["spoken_text"]
+        #         nmuTxt = instrPrmDict["menu_text"]
+        #         dsTxt = instrPrmDict["stage_directions"]
+        #         extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
+        #
+        #     instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": extId}
+        #     instructions.append(instrDict)
+        #
+        # if currIntNode == None and len(previousSequencesToContinueOnFrom) != 0:
+        #     sequenceFaninsToProcess.append((previousSequencesToContinueOnFrom, currIntNode))
+        #     internal_id = sequenceId+"_"+str(len(instructions))
+        #     instructions.append(instrDict = {"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to"}, "external_id": None})
+        #     currIntNode = internal_id
+            
+
 def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
     nodeDefnDict = nodeIdToDefnDict[nodeId]
     # array to keep track of nodes that have been referenced to determine which have not
