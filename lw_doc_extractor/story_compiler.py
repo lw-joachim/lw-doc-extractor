@@ -309,25 +309,25 @@ def _isInstrTypeAllowed(nodeId, nodeType, currSequence, instrType):
 
 _EMBED_ALLOWED_LIST = ["Chapter", "Section", "SubSection"]
 
-def _check_embeded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
+def _check_embedded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
     for instrDict in instructions:
         if instrDict["instruction_type"] == "NODE_REF":
             refNodeId = instrDict["parameters"]["id"]
-            embededType = nodeIdToDefnDict[refNodeId]["node_type"]
+            embeddedType = nodeIdToDefnDict[refNodeId]["node_type"]
             
             if nodeIdToParentIdDict[refNodeId] != nodeId:
-                raise RuntimeError(f"Node {refNodeId} is embeded in {nodeId}, but the parent hierarchy is incorrect. Check '_' usage")
+                raise RuntimeError(f"Node {refNodeId} is embedded in {nodeId}, but the parent hierarchy is incorrect. Check '_' usage")
             
             if nodeType not in _EMBED_ALLOWED_LIST:
                 raise RuntimeError(f"Node {nodeId} embeds node {refNodeId}, but its of node type {nodeType} which cant embed other nodes")
             
-            if nodeType == "Chapter" and embededType == "SubSection":
+            if nodeType == "Chapter" and embeddedType == "SubSection":
                 raise RuntimeError(f"Chapter node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
                 
-            if nodeType == "SubSection" and embededType == "SubSection":
+            if nodeType == "SubSection" and embeddedType == "SubSection":
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
             
-            if nodeType == "SubSection" and embededType == "Section":
+            if nodeType == "SubSection" and embeddedType == "Section":
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
 
 def process_instruction(chapterNodeId, instructionId, intructionType, instructionParameterDictionary):
@@ -355,7 +355,7 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
             subSequencesMap[choiceSeqId] = (choice["sequence"], instrDict)
     elif intructionType == "HUB":
         hubInstrPrms = {"hub_name" : f"{chapterNodeId}_HUB"}
-        processedInstruction = {"instruction_type" : "GENERIC_HUB", "internal_id" : instructionId, "parameters" : hubInstrPrms, "external_id": None}
+        processedInstruction = {"instruction_type" : "HUB", "internal_id" : instructionId, "parameters" : hubInstrPrms, "external_id": None}
         
         # note for HUB instrPrmDict is a list of choices :(
         for cCount, choice in enumerate(instructionParameterDictionary):
@@ -397,7 +397,7 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
     
     return processedInstruction, addedOnceVars, subSequencesMap, customPinsForSubSequenceMap
             
-def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initialSequnceInstruction, isEmbeded):  
+def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initialSequnceInstruction):  
     # Deleted todos:
     #  - implement check that nothing follows a jump, hub, 
     #  - node positioning
@@ -413,7 +413,6 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
     
     internalJumpsToProcess = []
     externalJumpsToProcess = []
-    sequenceFaninsToProcess = []
     
     instructions.append(initialSequnceInstruction)
     currIntNode = "{}_{}".format(sequenceId, "sqStart")
@@ -425,12 +424,14 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
     
     numberOfInstructions = len(instructionList)
     
-    lastInstruction = False
+    lastWasJumpOrEnd = False
     
     for i, aInstr in enumerate(instructionList):
-        if i == numberOfInstructions-1:
-            lastInstruction = True
         instType, instrPrmDict = aInstr
+        
+        if lastWasJumpOrEnd:
+            raise RuntimeError(f"Cannot continue after a jump or 'the end' in sequence {sequenceId}")
+        lastWasJumpOrEnd = False
         
         processedInstruction = None
         newAddedOnceVars = []
@@ -440,27 +441,26 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
         if currIntNode == None and len(previousSequencesToContinueOnFrom) == 0:
             raise RuntimeError("No current node and no sequences to continue on from")
         
-        # if instType == "INTERNAL_JUMP" or instType == "EXTERNAL_JUMP" or instType =="CHOICE_DIALOG" or instType =="HUB":
-        #     if currIntNode == None:
-        #         internal_id = sequenceId+"_"+str(len(instructions))
-        #         instructions.append(instrDict = {"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to"}, "external_id": None})
-        #         currIntNode = internal_id
-        #         sequenceFaninsToProcess.append((previousSequencesToContinueOnFrom, currIntNode))
+        if instType == "INTERNAL_JUMP" or instType == "EXTERNAL_JUMP":
+            if currIntNode == None:
+                internal_id = sequenceId+"_"+str(len(instructions))
+                instructions.append(instrDict = {"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to before a jump"}, "external_id": None})
+                currIntNode = internal_id
+                if len(previousSequencesToContinueOnFrom) > 0:
+                    for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                        for prevSeqEndIntId in prevSeqEndIntIdList:
+                            internalLinks.append((prevSeqEndIntId, 0, currIntNode))
+                    previousSequencesToContinueOnFrom.clear()
+            if instType == "INTERNAL_JUMP":
+                internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
+            elif instType == "EXTERNAL_JUMP":
+                externalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
+            
+            lastWasJumpOrEnd = True
+            continue
         
-        if instType == "INTERNAL_JUMP":
-            internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
-            currIntNode = None
-            previousSequencesToContinueOnFrom = {}
-            continue
-        elif instType == "EXTERNAL_JUMP":
-            externalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
-            currIntNode = None
-            previousSequencesToContinueOnFrom = {}
-            continue
         elif instType == "HUB":
-            if isEmbeded:
-                raise RuntimeError("Hubs cannot be used in embeded sequences")
-            if not lastInstruction:
+            if i < numberOfInstructions-1:
                 raise RuntimeError("Hub needs to be the last instruction in a sequence")
             hubSeqId = f"{nodeId}_Hub"
             hubIntId = hubSeqId+"_0"
@@ -476,8 +476,9 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
         else:
             instrId = "{}_{}".format(sequenceId, i)
             processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, instrId, instType, instrPrmDict)
+            if instType == "THE_END":
+                lastWasJumpOrEnd = True
             
-        
         addedOnceVars.update(set(newAddedOnceVars))
         
         if processedInstruction != None:
@@ -490,24 +491,25 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
                 previousSequencesToContinueOnFrom.clear()
             elif currIntNode != None:
                 internalLinks.append((currIntNode, 0, processedInstruction["internal_id"]))
-            # else:
-            #     if lastInstruction:
-            #         logger.debug(f"End of sequence {sequenceId} reached")
-            #     else:
-            #         raise RuntimeError(f"Invalid continuation for sequence {sequenceId} at instruction idx {i}")
-                
+            else:
+                raise RuntimeError("Can't attach {processedInstruction['internal_id']} to a previous node(s)")
             currIntNode = processedInstruction["internal_id"]
             
         
         newSeqToContinueOnFrom = {}
         for newSeqId in newSequences:
             seqRawInstructions, initialInstr = newSequences[newSeqId]
-            seqInstructions, seqInternalLinks, seqIntJumps, seqExternalJumps, seqEndTrailingInternalIds = process_sequence(chapterNodeId, nodeId, sequenceId, seqRawInstructions, initialInstr, isEmbeded)
+            seqInstructions, seqInternalLinks, seqIntJumps, seqExternalJumps, seqEndTrailingInternalIds, newAddedOnceVars = process_sequence(chapterNodeId, nodeId, sequenceId, seqRawInstructions, initialInstr)
+            
+            # TODO add check that there are either no links or no trailing sequences? or check emebed
+            
             newSeqToContinueOnFrom[newSeqId] = seqEndTrailingInternalIds
             
             instructions.extend(seqInstructions)
             internalLinks.extend(seqInternalLinks)
+            internalJumpsToProcess.extend(seqIntJumps)
             externalJumpsToProcess.extend(seqExternalJumps)
+            addedOnceVars.update(set(newAddedOnceVars))
             
             ssPinIdx  = 0 if newSeqId not in customPinsForSubSequenceMap else customPinsForSubSequenceMap[newSeqId]
             newSeqStartInstrIntId = seqInstructions[0]["internal_id"]
@@ -515,43 +517,28 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
             if currIntNode != None:
                 internalLinks.append((currIntNode, ssPinIdx, newSeqStartInstrIntId))
             else:
+                if len(previousSequencesToContinueOnFrom) == 0:
+                    raise RuntimeError("No previous to continue on from")
                 for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
                     for prevSeqEndIntId in prevSeqEndIntIdList:
                         internalLinks.append((prevSeqEndIntId, 0, newSeqStartInstrIntId))
             
-            newSeqToContinueOnFrom[newSeqId] = seqEndTrailingInternalIds
-            
         if len(newSeqToContinueOnFrom) > 0:
             currIntNode = None
             previousSequencesToContinueOnFrom = newSeqToContinueOnFrom
-                
-    endTrailingInternalIds = [currIntNode]
-    if len(previousSequencesToContinueOnFrom) > 0:
+    
+    if lastWasJumpOrEnd:
         endTrailingInternalIds = []
-        for seqId in previousSequencesToContinueOnFrom:
-            endTrailingInternalIds.extend(previousSequencesToContinueOnFrom[seqId])
+    else:
+        if currIntNode != None:
+            endTrailingInternalIds = [currIntNode]
+        if len(previousSequencesToContinueOnFrom) > 0:
+            endTrailingInternalIds = []
+            for seqId in previousSequencesToContinueOnFrom:
+                endTrailingInternalIds.extend(previousSequencesToContinueOnFrom[seqId])
     
-    return instructions, internalLinks, internalJumpsToProcess, externalJumpsToProcess, endTrailingInternalIds
+    return instructions, internalLinks, internalJumpsToProcess, externalJumpsToProcess, endTrailingInternalIds, addedOnceVars
         
-        
-        
-        
-        
-            
-    intIdWithJump = [srcIntId for srcIntId, _srcPinIdx, _tarSeq in internalJumpsToProcess]
-    intIdWithJump.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in externalJumpsToProcess]) 
-    
-    embededSequences = [prevSeq for prevSeq, _tarIntId in sequenceFaninsToProcess]
-    
-
-    for newSeqId in newSequences:
-        newSeqInstructions, newSiqnitialInstructions = newSequences[newSeqId]
-        process_sequence(chapterNodeId, nodeId, newSeqId, newSeqInstructions, newSiqnitialInstructions, newSeqId in embededSequences)
-        
-        
-        
-    return instructions, internalLinks, internalJumpsToProcess, externalJumpsToProcess , internalLinks
-            
             
         # elif instType =="CHOICE_DIALOG":
         #     choices = [dict(c) for c in instrPrmDict["choices"]]
@@ -655,9 +642,154 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
         #     internal_id = sequenceId+"_"+str(len(instructions))
         #     instructions.append(instrDict = {"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to"}, "external_id": None})
         #     currIntNode = internal_id
+        
+# rules for automatically creating a link to a hub are
+#  - if the instruction does not contain a link
+#  - then if this node is an embedded node (in the sequence it is embedded in, is not the last instruction in the sequence) then create a return
+#  - if not then link to the current nodes hub
+#  - if that doesnt exist then link to the hub in the parent or if parent is subsection then to the hub of the parent of subsection
+#  - if that doesnt exist raise an error
+def fix_int_jumps_and_trailing_instr(nodeId, instructions, intLinks, internalJumpsToProcess, extJumps, sequenceIdToIntId, nodeToDefnDict, nodeIdToParentIdDict, isEmbedded):
+    newLinks = []
+    newExtLinks = []
+    
+    parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
+    
+    currentHub = _get_hub_id(nodeToDefnDict[nodeId])
+    parentHub = None
+    if parentId:
+        parentWithHubId = None
+        if nodeToDefnDict[parentId]["node_type"] == "SubSection":
+            parentWithHubId = nodeIdToParentIdDict[parentId] if parentId in nodeIdToParentIdDict else None
+        else:
+            parentWithHubId = parentId
+        
+        if parentWithHubId:
+            parentHub = _get_hub_id(nodeToDefnDict[parentWithHubId])
             
+    # if currentHub and nodeId in allNodesWithOutgoingLinks:
+    #     raise RuntimeError("Embedded node {} has a hub")
+            
+    for srcInternId, sourceOutPin, targetSequennce in internalJumpsToProcess:
+        if targetSequennce == "CONTINUE":
+            if not isEmbedded:
+                raise RuntimeError(f"Using a CONTINUE jump in a non embed node {nodeId}")
+            newLinks.append((srcInternId, sourceOutPin, nodeId))
+        elif targetSequennce in sequenceIdToIntId:
+            newLinks.append((srcInternId, sourceOutPin, sequenceIdToIntId[targetSequennce]))
+        else:
+            logger.warn(f"{targetSequennce} not found. Available internal sequences for node id {nodeId} are {sequenceIdToIntId}")
+            raise RuntimeError(f"In node {nodeId} cannot create an internal link from {srcInternId} to {targetSequennce}")
+        
+    
+    intIdWithLink = [srcIntId for srcIntId, _srcPinIdx, _tarIntId in intLinks]
+    intIdWithLink.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in newLinks])
+    intIdWithLink.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in extJumps]) 
+    intIdWithLinkSet = set(intIdWithLink)
+    embeddedNodes = []
+    for instr in instructions:
+        instrType = instr["instruction_type"]
+        instrId = instr["external_id"]
+        if instrType == "THE_END":
+            if instrId in intIdWithLinkSet:
+                raise RuntimeError(f"THE_END node should not have outgoing links. In node {nodeId}")
+            continue
+        elif instrType == "NODE_REF":
+            if instrId in intIdWithLinkSet:
+                embeddedNodes.append(instr["parameters"]["id"])
+        else:
+            if instrId in intIdWithLinkSet:
+                continue
+            # Trailing node found
+            logger.debug(f"Node with instruction id '{instrId}' is trailing. Trying to generate link.")
+            if isEmbedded:
+                newLinks.append((instrId, 0, nodeId))
+                logger.debug(f"For instruction with ID '{instrId}' adding internal return jump to {nodeId}")
+            elif currentHub != None:
+                newLinks.append((instrId, 0, sequenceIdToIntId[currentHub]))
+                logger.debug(f"For instruction with ID '{instrId}' adding internal jump to {currentHub}")
+                
+            elif parentHub != None:
+                newExtLinks.append((instrId, 0, parentHub))
+                logger.debug(f"For instruction with ID '{instrId}' adding external jump to {parentHub}")
+            else:
+                raise RuntimeError(f"Cannot trailing instruction with ID '{instrId}'. Not embedded and no hub to link to")
+    return newLinks, newExtLinks, embeddedNodes
 
-def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
+def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
+    nodeDefnDict = nodeIdToDefnDict[nodeId]
+    
+    seqNameToSeqInstrDict = {}
+    seqNameToSeqInstrDict[f"{nodeId}_start_sequence"] = nodeDefnDict["start_sequence"]
+    seqNameToSeqInstrDict.update(nodeDefnDict["referenced_sequences"])
+    
+    sequenceToIntId = {}
+    allInstructions = []
+    allIntLinks = []
+    allExternalLinks = []
+    allAddedOnceVars = set()
+    
+    try:
+        intJumpsToProcess = []
+        for sequenceId in seqNameToSeqInstrDict:
+            seqRawInstructions = seqNameToSeqInstrDict[sequenceId]
+            seqInstructions, seqInternalLinks, seqIntJumps, seqExternalJumps, _seqEndTrailingInternalIds, addedOnceVars =  process_sequence(chapterNodeId, nodeId, sequenceId, seqRawInstructions, initialInstr=None)
+            sequenceToIntId[sequenceId] = seqInstructions[0]["internal_id"]
+            allInstructions.extend(seqInstructions)
+            allIntLinks.extend(seqInternalLinks)
+            intJumpsToProcess.extend(seqIntJumps)
+            allExternalLinks.extend(seqExternalJumps)
+            allAddedOnceVars.update(set(addedOnceVars))
+            
+        hubs = [instr["internal_id"] for instr in allInstructions if instr["instruction_type"] == "HUB"]
+        childNodes = [instr["internal_id"] for instr in allInstructions if instr["instruction_type"] == "NODE_REF"]
+        
+        if len(hubs) > 1:
+            raise RuntimeError(f"Node {nodeId} has more than 1 hub")
+        elif len(hubs) == 1:
+            sequenceToIntId[f"{nodeId}_Hub"] = hubs[0]["internal_id"]
+            
+        newIntLinks, newExtLinks, embeddedNodes = fix_int_jumps_and_trailing_instr(nodeId, allInstructions, allIntLinks, intJumpsToProcess, allExternalLinks, sequenceToIntId, nodeIdToDefnDict, nodeIdToParentIdDict, isEmbedded)
+        allIntLinks.extend(newIntLinks)
+        allExternalLinks.extend(newExtLinks)
+        
+        
+        nodesReferenced = []
+        for childNode in childNodes:
+            if childNode not in childIds:
+                raise RuntimeError(f"{childNode} node reference does not match child nodes. Needs to be one of {childIds}")
+            if childNode in nodesReferenced:
+                raise RuntimeError(f"{childNode} node reference has been used twice in node {nodeId}")
+            nodesReferenced.append(childNode)
+            
+        for cId in childIds:
+            if cId not in nodesReferenced:
+                logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
+                internal_id = nodeId+"_"+str(len(allInstructions))
+                if cId not in allNodeIds:
+                    raise RuntimeError(f"Unknown node reference {cId}")
+                instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "external_id": cId}
+                allInstructions.append(instrDict)
+        
+        resDict = { "id": nodeDefnDict["id"],
+                    "type": nodeDefnDict["node_type"],
+                    "description": nodeDefnDict["description"],
+                    "image" : nodeDefnDict["image"],
+                    "parent" : parentId,
+                    "internal_content_positions" : instructionPos,
+                    "internal_content": allInstructions,
+                    "internal_links": allIntLinks,
+                    "external_links": allExternalLinks,
+                    "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in sequenceToIntId.items() if "~" not in seqId},
+                    "target_to_multiple_internal_id" : {} }
+        if len(addedOnceVars) > 0:
+            logger.debug(f"Added {len(addedOnceVars)} variable for options that will only be used once")
+        return resDict, addedOnceVars, embeddedNodes
+    except Exception as e:
+        logger.warning(f"Error while processing node {nodeId}")
+        raise
+
+def process_node_old(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
     nodeDefnDict = nodeIdToDefnDict[nodeId]
     # array to keep track of nodes that have been referenced to determine which have not
     nodesReferenced = []
@@ -885,12 +1017,12 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOut
         if nodeId in embedSequenceWithOutlinksTracker:
             for srcL, srcOutPin, tarL in externalLinks:
                 if tarL != nodeId:
-                    raise RuntimeError(f"Node {nodeId} is an embeded node but has an external reference to {tarL}. ie. node {nodeId} was referenced -* but is not the last item in the sequence it is referenced in and also has other external links")
+                    raise RuntimeError(f"Node {nodeId} is an embedded node but has an external reference to {tarL}. ie. node {nodeId} was referenced -* but is not the last item in the sequence it is referenced in and also has other external links")
                         
         if len(instructions) != len(instructionPos):
             raise RuntimeError("Uneven instruction pos arr len")
         
-        _check_embeded_nodes(nodeId, nodeDefnDict["node_type"], instructions, nodeIdToDefnDict, nodeIdToParentIdDict)
+        _check_embedded_nodes(nodeId, nodeDefnDict["node_type"], instructions, nodeIdToDefnDict, nodeIdToParentIdDict)
         
         resDict = { "id": nodeDefnDict["id"],
                     "type": nodeDefnDict["node_type"],
@@ -1129,7 +1261,8 @@ def compile_story(ast):
         logger.info(f"Processing internal logic of node {nodeId}")
         logger.debug(f"Parent: {parentId}, children: {childIds}")
         try:
-            nodeDict, addedOnceVars = process_node(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
+            isEmbedded = nodeId in embedSequenceWithOutlinksTracker
+            nodeDict, addedOnceVars = process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeToDefnDict, nodeIdToParentIdDict, allNodeIds)
             allAddedOnceVars.extend(addedOnceVars)
             resDict["nodes"].append(nodeDict)
         except Exception as e:
