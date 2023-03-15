@@ -300,7 +300,7 @@ def getNodeTmpl(node):
 def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, posX, posY):
     logger.debug("In {} creating instruction {}".format(parentNodeId, instruction))
     eventIdInTitle = ["STAGE_EVENT", "SYNC_STAGE_EVENT", "GAME_EVENT_LISTENER", "LOAD_STAGE"]
-    generic  = ["START_QUEST",  "END_QUEST", "THE_END", "SAVE_GAME", "COMMENT"] + eventIdInTitle
+    generic  = ["START_QUEST",  "END_QUEST", "THE_END", "SAVE_GAME", "COMMENT", "SEQUENCE_NODE"] + eventIdInTitle
     
     # templateMap = { "START_QUEST" : "StartQuest",
     #                 "END_QUEST" : "EndQuest",
@@ -334,6 +334,8 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
             refId = instrPrm["quest_id"]
         elif instrType ==  "SAVE_GAME":
             refId = instrPrm["title"]
+        elif instrType == "SEQUENCE_NODE":
+            refId = instrPrm["sequence_name"]
         else:
             if instrPrm["description"] is None:
                 refId = "{}:{}".format(parentNodeId, str(uuid.uuid4())[:8])
@@ -360,9 +362,13 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
     
     return articyObj
 
-def get_mapped_position(posX, posY):
-    return posX*400, posY*400
-
+def get_mapped_position(posX, posY, instruciontType):
+    addY = 0
+    if instruciontType in ["IF", "SET"]:
+        addY = 50
+    elif instruciontType in ["GENERIC_HUB", "HUB"]:
+        addY = 75
+    return posX*400, posY*400 + addY
 
 def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict, nodeIdToNodeDefn):
     internalIdToArticyObj = {}
@@ -388,7 +394,7 @@ def create_node_internals(articyApi, parentNodeId, flowFragmentObject, nodeDict,
         else:
             articyObj = create_instruction(articyApi, parentNodeId, flowFragmentObject, instr, posX, posY)
         internalIdToArticyObj[instr["internal_id"]] = articyObj
-        articyObj.SetFlowPosition(*get_mapped_position(posX, posY))
+        articyObj.SetFlowPosition(*get_mapped_position(posX, posY, instr["instruction_type"]))
         if instr["external_id"]:
             articyObj.SetExternalId(instr["external_id"])
     
@@ -774,6 +780,7 @@ def main():
                 if chapterId == None:
                     raise RuntimeError("No chapter node found in script")
                 
+                foundChapter = None
                 if topFragmentProjektName:
                     for topLvlFragment in sysFolder.GetChildren():
                         if topLvlFragment.GetDisplayName() == topFragmentProjektName:
@@ -782,7 +789,6 @@ def main():
                         raise RuntimeError("Cant find top level fragment with name {}".format(topFragmentProjektName))
                     logger.info("Found top level flow fragment with name {}".format(topFragmentProjektName))
                     
-                    foundChapter = None
                     for aChaptFragment in list(parentFragment.GetChildren()):
                         if aChaptFragment.GetDisplayName() == chapterId:
                             foundChapter = aChaptFragment
