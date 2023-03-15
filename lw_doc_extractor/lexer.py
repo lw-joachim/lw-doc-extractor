@@ -169,6 +169,8 @@ class StatementTransformer(lark.Transformer):
                     returnDict["choice_description"] = item.value.strip()
                 elif item.type == "EVENT_ID":
                     returnDict["event_id"] = item.value.strip().replace(" ", "_")
+                elif item.type == "CHOICE_INFINITE":
+                    continue
                 else:
                     raise RuntimeError(f"Unexpected token {item.type} in shac_choice")
             elif type(item) == lark.Tree:
