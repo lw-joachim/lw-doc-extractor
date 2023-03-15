@@ -27,7 +27,7 @@ def prog1():
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGym.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGymT.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\ChapterLeviesFeast.docx", "-o", "test_files\comp_output.json"]
-        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\LF.docx", "-o", r"test_files\manual\comp_output.json",  "--debug_dir", r"test_files\manual"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"test_files\test.docx", "-o", r"test_files\manual\comp_output.json",  "--debug_dir", r"test_files\manual"]
     cli.main()
     
 def prog2():
@@ -41,7 +41,7 @@ def prog2():
 def prog3():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\manual\comp_output.json", "--auth_file", "test_files\mycred"]
+        sys.argv = [old_sys_argv[0]] + ["-vv", r"test_files\manual\comp_output.json", "--auth_file", "test_files\mycred"]
     cli.run_populator_main()
 
 def prog1r():
@@ -110,7 +110,7 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    prog2()
+    prog1()
     prog3()
     #prog1r()
     #prog3r()

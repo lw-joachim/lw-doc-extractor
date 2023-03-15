@@ -428,12 +428,8 @@ class InstructionsContainer:
         
     def add_instruction(self, instruction):
         self.instructions.append(instruction)
-        if self.currSeqMaxX > 0:
-            self.instrXPos = self.currSeqMaxX + 1
         self.positions.append((self.instrXPos, self.currYRow))
         self.instrXPos += 1
-        self.currSeqAddY = 0
-        self.currSeqMaxX = 0
             
     def reset_x(self):
         if self.instrXPos > 0 or self.currSeqAddY != 0:
@@ -459,6 +455,12 @@ class InstructionsContainer:
             if seqPosX > self.currSeqMaxX:
                 self.currSeqMaxX = seqPosX
         self.currSeqAddY += 1
+        
+    def finished_adding_sequences(self):
+        if self.currSeqMaxX > 0:
+            self.instrXPos = self.currSeqMaxX + 1
+        self.currSeqAddY = 0
+        self.currSeqMaxX = 0
     
     def get_instructions_and_positions(self):
         if len(self.instructions) != len(self.positions):
@@ -484,7 +486,8 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
     if initialSequnceInstruction:
         instructions.add_instruction(initialSequnceInstruction)
     currIntNode = "{}_{}".format(sequenceId, "sqStart")
-    instructions.add_instruction({"instruction_type" : "SEQUENCE_NODE", "internal_id" : currIntNode, "parameters" : {"sequence_name":sequenceId}, "external_id": sequenceId})
+    #instructions.add_instruction({"instruction_type" : "SEQUENCE_NODE", "internal_id" : currIntNode, "parameters" : {"sequence_name":sequenceId}, "external_id": sequenceId})
+    instructions.add_instruction({"instruction_type" : "SET", "internal_id" : currIntNode, "parameters" : {"instruction":"//"+sequenceId}, "external_id": None})
     if initialSequnceInstruction:
         internalLinks.append((initialSequnceInstruction["internal_id"], 0, currIntNode))
     
@@ -517,7 +520,7 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
                 instructions.add_instruction({"instruction_type" : "SET", "internal_id" : internal_id, "parameters" : {"instruction" : "//dummy to have something to connect to before a jump"}, "external_id": None})
                 currIntNode = internal_id
                 if len(previousSequencesToContinueOnFrom) > 0:
-                    for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                    for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom.items():
                         for prevSeqEndIntId in prevSeqEndIntIdList:
                             internalLinks.append((prevSeqEndIntId, 0, currIntNode))
                     previousSequencesToContinueOnFrom.clear()
@@ -555,7 +558,7 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
             instructions.add_instruction(processedInstruction)
             
             if len(previousSequencesToContinueOnFrom) > 0:
-                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom.items():
                     for prevSeqEndIntId in prevSeqEndIntIdList:
                         internalLinks.append((prevSeqEndIntId, 0, processedInstruction["internal_id"]))
                 previousSequencesToContinueOnFrom.clear()
@@ -589,10 +592,11 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
             else:
                 if len(previousSequencesToContinueOnFrom) == 0:
                     raise RuntimeError("No previous to continue on from")
-                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom:
+                for _seqId, prevSeqEndIntIdList in previousSequencesToContinueOnFrom.items():
                     for prevSeqEndIntId in prevSeqEndIntIdList:
                         internalLinks.append((prevSeqEndIntId, 0, newSeqStartInstrIntId))
-            
+        instructions.finished_adding_sequences()
+
         if len(newSeqToContinueOnFrom) > 0:
             currIntNode = None
             previousSequencesToContinueOnFrom = newSeqToContinueOnFrom
@@ -676,13 +680,12 @@ def fix_int_jumps_and_trailing_instr(nodeId, instructions, intLinks, internalJum
                 continue
             # Trailing node found
             logger.debug(f"Node with instruction id '{instrId}' is trailing. Trying to generate link.")
-            if isEmbedded:
-                newLinks.append((instrId, 0, nodeId))
-                logger.debug(f"For instruction with ID '{instrId}' adding internal return jump to {nodeId}")
-            elif currentHub != None:
+            if currentHub != None:
                 newLinks.append((instrId, 0, sequenceIdToIntId[currentHub]))
                 logger.debug(f"For instruction with ID '{instrId}' adding internal jump to {currentHub}")
-                
+            elif isEmbedded:
+                newLinks.append((instrId, 0, nodeId))
+                logger.debug(f"For instruction with ID '{instrId}' adding internal return jump to {nodeId}")
             elif parentHub != None:
                 newExtLinks.append((instrId, 0, parentHub))
                 logger.debug(f"For instruction with ID '{instrId}' adding external jump to {parentHub}")
@@ -714,6 +717,7 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
             intJumpsToProcess.extend(seqIntJumps)
             allExternalLinks.extend(seqExternalJumps)
             allAddedOnceVars.update(addedOnceVars)
+        instrContainer.finished_adding_sequences()
             
         hubs = [instr["internal_id"] for instr in instrContainer.get_instructions() if instr["instruction_type"] == "HUB"]
         childNodes = [instr["external_id"] for instr in instrContainer.get_instructions() if instr["instruction_type"] == "NODE_REF"]
@@ -1116,7 +1120,12 @@ def _getNodeIdToVariableList(nodesList, addedOnceVars):
     return variableDict
 
 def _checkSetVarOk(instrLine, validVariablesSet):
-    allMatches = VAR_NM_MATCHER.findall(instrLine)
+    instrFixed = "\n".join([l for l in instrLine.split("\n") if not l.strip().startswith("//")])
+    
+    if instrFixed == "":
+        return True
+    
+    allMatches = VAR_NM_MATCHER.findall(instrFixed)
     allMatches = [m for m in allMatches if m != "true" and m != "false"]
     if len(allMatches) == 0:
         logger.warning("No matches for variables in line")
