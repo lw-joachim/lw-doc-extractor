@@ -51,7 +51,7 @@ def get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText):
     return  retStr
 
 def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineText):
-    if chapterId == "LF" and False:
+    if chapterId == "LF":
         fileNm = get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText)
     else:
         
