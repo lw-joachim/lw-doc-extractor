@@ -87,7 +87,7 @@ def prog6r():
     logging.basicConfig(level=logging.DEBUG)
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "test_files\\script_out"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Content\Story\LF\compiler_output.json", "test_files\\script_out"]
     
     
     tools.generate_audio_recording_files_cli()
@@ -101,6 +101,15 @@ def prog7t():
         tools.update_story_chapter_cli()
     finally:
         print("Done")
+        
+def prog_update_story():
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json"]#, "--dry-run-audio"]
+    try:
+        tools.update_story_chapter_cli()
+    finally:
+        print("Done")
     
 def prog8t():
     if "shoebill" == socket.gethostname():
@@ -110,13 +119,13 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    prog1()
-    prog3()
+    #prog1()
+    #prog3()
     #prog1r()
     #prog3r()
-    #prog3t()
     #prog6r()
     #prog7t()
     
     #prog8t()
+    prog_update_story()
     

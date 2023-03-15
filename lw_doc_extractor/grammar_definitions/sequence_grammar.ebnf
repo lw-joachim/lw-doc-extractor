@@ -1,6 +1,6 @@
 
 sequence : (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements | hub_statement_block | choice_dialog_statement | if_block | shac_statement_block )+
-inner_sequence: (LINE_COMMENT | inner_statement | simple_dialog_line | jump_statements)+
+inner_sequence: (LINE_COMMENT | inner_statement | if_block | simple_dialog_line | jump_statements)+
 
 // shac
 shac_statement_block :  "-" "SHAC_CHOICE" _NEWLINE shac_choice+ "SHAC_CHOICE_END" _NEWLINE
@@ -61,7 +61,7 @@ CHOICE_SINGLE : "Θ"
 CHOICE_INFINITE : "∞"
 
 //conditions
-condition : "IF" REST_OF_LINE _NEWLINE
+condition : "C_IF" REST_OF_LINE _NEWLINE
 exit_instruction : "SET" REST_OF_LINE _NEWLINE
 
 // Terminals
