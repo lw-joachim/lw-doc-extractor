@@ -103,177 +103,7 @@ def get_processing_order(currNodeId, nodeIdToChildIdsDict):
             ret.extend(get_processing_order(cNodeId, nodeIdToChildIdsDict))
     return ret
 
-# # rules for automatically creating a link to a hub are
-# #  - if last item in sequence is not a jump, choice, hub, if, shac, the_end or a node ref
-# #  - then if this node, in the sequence it is embedded in, is not the last instruction in the sequence, then create a return
-# #  - if not then link to the current nodes hub
-# #  - if that doesnt exist then link to the hub in the parent or if parent is subsection then to the hub of the parent of subsection
-# #  - if that doesnt exist raise an error
-# def auto_link_hub(nodeId, sequenceDict, nodeToDefnDict, nodeIdToParentIdDict, allNodesWithOutgoingLinks):
-#     parentId = nodeIdToParentIdDict[nodeId] if nodeId in nodeIdToParentIdDict else None
-#
-#     currentHub = _get_hub_id(nodeToDefnDict[nodeId])
-#     parentHub = None
-#     if parentId:
-#         parentWithHubId = None
-#         if nodeToDefnDict[parentId]["node_type"] == "SubSection":
-#             parentWithHubId = nodeIdToParentIdDict[parentId] if parentId in nodeIdToParentIdDict else None
-#         else:
-#             parentWithHubId = parentId
-#
-#         if parentWithHubId:
-#             parentHub = _get_hub_id(nodeToDefnDict[parentWithHubId])
-#
-#
-#     for seqId in sequenceDict:
-#         if len(sequenceDict[seqId]) == 0:
-#             raise RuntimeError(f"Cannot fix sequence {seqId} as it is empty.")
-#         if sequenceDict[seqId][-1][0] == "THE_END":
-#             continue
-#         if sequenceDict[seqId][-1][0] not in ["CHOICE_DIALOG", "IF", "HUB", "NODE_REF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "THE_END", "GENERIC_HUB"]:
-#             if nodeId in allNodesWithOutgoingLinks:
-#                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : nodeId}))
-#                 logger.debug(f"For sequence {seqId} adding internal return jump to {nodeId}")
-#             elif currentHub != None:
-#                 sequenceDict[seqId].append(("INTERNAL_JUMP", {"referenced_id" : currentHub}))
-#                 logger.debug(f"For sequence {seqId} adding internal jump to {currentHub}")
-#             elif parentHub != None:
-#                 sequenceDict[seqId].append(("EXTERNAL_JUMP", {"referenced_id" : parentHub}))
-#                 logger.debug(f"For sequence {seqId} adding external jump to {parentHub}")
-#             else:
-#                 raise RuntimeError(f"Cannot fix sequence {seqId}. Last command of sequence {sequenceDict[seqId][-1][0]}")
-#
-#
-#
-# # creates new sequences for instructions for hub, dialog choide and if and
-# # replaces instructions with references
-# def flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict):
-#     complexStatements = ["CHOICE_DIALOG", "IF", "HUB", "SHAC_CHOICE"]
-#
-#     flatSequences = collections.OrderedDict()
-#     nodeId = nodeDefnDict['id']
-#
-#     seqPos = {}
-#
-#     hubFound = False
-#
-#     addedOnceVars = []
-#
-#     for seqId in sequenceIds:
-#         if seqId == "start_sequence":
-#             seqToProcess = nodeDefnDict[seqId]
-#             seqId = f"{nodeId}_start_sequence"
-#         else:
-#             seqToProcess = nodeDefnDict["referenced_sequences"][seqId]
-#         if not seqId.startswith(nodeId):
-#             raise RuntimeError(f"Sequence {seqId} does not start with prefix of node {nodeId}")
-#
-#         logger.debug(f"Flattenning sequence {seqId}")
-#         flatSequences[seqId] = []
-#         seqPos[seqId] = (len(seqPos), 0)
-#         for i, inst in enumerate(seqToProcess):
-#             instType = inst[0]
-#             complexStatementUsed = False
-#             if instType not in complexStatements:
-#                 flatSequences[seqId].append(inst)
-#             else:
-#                 try:
-#                     if complexStatementUsed:
-#                         raise RuntimeError(f"There con only be one complex statement within a sequence. Offending statement: {inst}")
-#                     if instType == "HUB":
-#                         if hubFound:
-#                             raise RuntimeError("More than one hub found in node {nodeDefnDict['id']}")
-#                         hubFound = True
-#                         if nodeDefnDict["node_type"] not in ["Chapter", "Section"]:
-#                             raise RuntimeError(f"Node {nodeDefnDict['id']} defines a hub but is not of type Chapter or Section")
-#
-#                         hubSeqId = f"{nodeDefnDict['id']}_Hub"
-#
-#                         flatSequences[seqId].append(("INTERNAL_JUMP", {"referenced_id" :hubSeqId}))
-#
-#                         flatSequences[hubSeqId] = [["HUB", {"choices" : [], "original_sequence" : seqId if i == 0 else None}]]
-#                         seqPos[hubSeqId] = (len(seqPos), 0)
-#
-#                         choices = []
-#                         for cCount, choice in enumerate(inst[1]):
-#                             choiceSeqId = f"{seqId}~{cCount}~hubchoice"
-#                             choices.append({"sequence_ref": choiceSeqId})
-#                             addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : choice["condition"], "exit_instruction": choice["exit_instruction"], "event_id" : choice["event_id"]})
-#                             if choice["once"]:
-#                                 varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
-#                                 addedOnceVars.append(varNm)
-#                                 addInstr[1]["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
-#                                 addInstr[1]["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
-#                             flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
-#                             seqPos[choiceSeqId] = (len(seqPos), 1)
-#                         flatSequences[hubSeqId][0][1]["choices"] = choices
-#
-#                     elif instType == "CHOICE_DIALOG":
-#                         choices = [dict(c) for c in inst[1]["choices"]]
-#                         for cCount, choice in enumerate(choices):
-#                             choiceSeqId = f"{seqId}~{cCount}~dialogchoice"
-#                             flatSequences[choiceSeqId] = choice.pop("sequence")
-#                             choice["sequence_ref"] = choiceSeqId
-#                             if choice["once"]:
-#                                 varNm = f"{chapterNodeId}.once_{choiceSeqId}".replace("-", "_").replace("~", "_")
-#                                 addedOnceVars.append(varNm)
-#                                 choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
-#                                 choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
-#                             seqPos[choiceSeqId] = (len(seqPos), i+1)
-#                         cpyDict = dict(inst[1])
-#                         cpyDict["choices"] = choices
-#                         flatSequences[seqId].append(("CHOICE_DIALOG",  cpyDict))
-#                     elif instType == "SHAC_CHOICE":
-#                         flatSequences[seqId].append(["GENERIC_HUB", {"choices" : [], "original_sequence" : None}])
-#                         for cCount, choice in enumerate(inst[1]):
-#                             choiceSeqId = f"{seqId}~{cCount}~shacchoice"
-#                             flatSequences[seqId][-1][1]["choices"].append({"sequence_ref": choiceSeqId})
-#                             addInstr = ("GAME_EVENT_LISTENER", {"description": f"{choice['choice_description']}", "condition" : None, "exit_instruction": None, "event_id" : choice["event_id"]})
-#                             flatSequences[choiceSeqId] = [addInstr] + choice["sequence"]
-#                             seqPos[choiceSeqId] = (len(seqPos), 1)
-#
-#                     elif instType == "IF":
-#                         choiceSeqIdTrue = f"{seqId}~true"
-#                         choiceSeqIdFalse = f"{seqId}~false"
-#                         flatSequences[choiceSeqIdTrue] = inst[1]["sequence_true"]
-#                         flatSequences[choiceSeqIdFalse] = inst[1]["sequence_false"]
-#                         flatSequences[seqId].append(("IF", {"eval_condition": inst[1]["eval_condition"], "sequence_ref_true" : choiceSeqIdTrue, "sequence_ref_false" :choiceSeqIdFalse}))
-#                         seqPos[choiceSeqIdTrue] = (len(seqPos), i+1)
-#                         seqPos[choiceSeqIdFalse] = (len(seqPos), i+1)
-#
-#                     complexStatementUsed = True
-#                 except Exception:
-#                     logger.warning(f"Error occurred in sequence {seqId} while processing instruction {i}: {inst}")
-#                     raise
-#
-#     return flatSequences, seqPos, addedOnceVars
-#
-# def _collapse_links(sequences, allNodeIds):
-#     retDict = {}
-#     def _collapse_internal(refNode):
-#         seqList = sequences[refNode]
-#         if len(seqList) == 1:
-#             instType, instrPrmDict = seqList[0]
-#             if instType == "INTERNAL_JUMP":
-#                 return _collapse_internal(instrPrmDict["referenced_id"])
-#             elif instType == "EXTERNAL_JUMP":
-#                 return ("EXT", instrPrmDict["referenced_id"])
-#         return ("INT", refNode)
-#
-#     for seqId, seqList in sequences.items():
-#
-#         if len(seqList) == 0:
-#             raise RuntimeError(f"Sequence of len 0 found: {seqId}")
-#
-#         if len(seqList) == 1:
-#             instType, instrPrmDict = seqList[0]
-#             if instType == "EXTERNAL_JUMP":
-#                 retDict[seqId] = ("EXT", instrPrmDict["referenced_id"])
-#             elif instType == "INTERNAL_JUMP":
-#                 retDict[seqId] = _collapse_internal(instrPrmDict["referenced_id"])
-#     return retDict
-
-def _isInstrTypeAllowed(nodeId, nodeType, currSequence, instrType):
+def _isInstrTypeAllowed(nodeType, instrType):
     
     allowedEverywhere = ["COMMENT", "IF", "SET", "EXTERNAL_JUMP", "INTERNAL_JUMP"]
     if instrType in allowedEverywhere:
@@ -310,9 +140,10 @@ def _isInstrTypeAllowed(nodeId, nodeType, currSequence, instrType):
 
 _EMBED_ALLOWED_LIST = ["Chapter", "Section", "SubSection"]
 
-def _check_embedded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
+def _check_embedded_nodes_and_instructions(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
     for instrDict in instructions:
-        if instrDict["instruction_type"] == "NODE_REF":
+        instrType = instrDict["instruction_type"]
+        if instrType == "NODE_REF":
             refNodeId = instrDict["parameters"]["id"]
             embeddedType = nodeIdToDefnDict[refNodeId]["node_type"]
             
@@ -330,6 +161,8 @@ def _check_embedded_nodes(nodeId, nodeType, instructions, nodeIdToDefnDict, node
             
             if nodeType == "SubSection" and embeddedType == "Section":
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
+        if not _isInstrTypeAllowed(nodeType, instrType):
+            raise RuntimeError(f"In node '{nodeId}', instruction type '{instrType}' is not allowed within node type '{nodeType}'")
 
 def process_instruction(chapterNodeId, instructionId, intructionType, instructionParameterDictionary):
     processedInstruction = None
@@ -751,6 +584,9 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
                 instrContainer.add_instruction(instrDict)
         
         allInstructions, allInstructionPositions = instrContainer.get_instructions_and_positions()
+        
+        _check_embedded_nodes_and_instructions(nodeId, nodeDefnDict["node_type"], allInstructions, nodeIdToDefnDict, nodeIdToParentIdDict)
+        
         resDict = { "id": nodeDefnDict["id"],
                     "type": nodeDefnDict["node_type"],
                     "description": nodeDefnDict["description"],
@@ -768,259 +604,6 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
     except Exception as e:
         logger.warning(f"Error while processing node {nodeId}")
         raise
-
-# def process_node_old(chapterNodeId, nodeId, parentId, childIds, embedSequenceWithOutlinksTracker, nodeIdToDefnDict, nodeIdToParentIdDict, allNodeIds):
-#     nodeDefnDict = nodeIdToDefnDict[nodeId]
-#     # array to keep track of nodes that have been referenced to determine which have not
-#     nodesReferenced = []
-#
-#     # print("======!!!!!!")
-#     # print(nodeId)
-#     # print(json.dumps(nodeDefnDict, indent=2))
-#
-#     try:
-#
-#         sequenceIds = ["start_sequence"]
-#         for k in nodeDefnDict["referenced_sequences"]:
-#             sequenceIds.append(k)
-#
-#         flattenedSequences , sequenceStartPos, addedOnceVars = flatten_sequences(chapterNodeId, sequenceIds, nodeDefnDict)
-#         #print(json.dumps(flattenedSequences, indent=2))
-#         sequenceStartPos = {}
-#
-#         embedSequenceWithOutlinksTracker.update(_get_all_nodes_with_outgoing_links_in_sequences(flattenedSequences.values()))
-#
-#         # inplace
-#         auto_link_hub(nodeId, flattenedSequences, nodeIdToDefnDict, nodeIdToParentIdDict, embedSequenceWithOutlinksTracker)
-#
-#         instructions = []
-#         instructionPos = []
-#         internalLinks = []
-#         externalLinks = []
-#
-#         seqenceToNodeIntId = {}
-#         sequenceToMultipleIntId = {}
-#
-#         collapsedSequenceIdToTarget = _collapse_links(flattenedSequences, allNodeIds)
-#         # print("==== Collapsed list")
-#         # print(json.dumps(collapsedSequenceIdToTarget, indent =2 ))
-#
-#         currIntNode = nodeId
-#
-#         jumpsToProcess = []
-#         anonChoicesThatCanBeLinkedTo = []
-#
-#         seqPosX = 0
-#         seqPosY = 0
-#         intrPosCnt = 0
-#
-#         maxYPos = 0
-#
-#         # print("================= {} collaped seq".format(nodeId))
-#         # print(collapsedSequenceIdToTarget)
-#         # print("====================== collaped end")
-#
-#
-#
-#         for seqId, seqList in flattenedSequences.items():
-#             if seqId in collapsedSequenceIdToTarget and not seqId.endswith("start_sequence"):
-#             #if seqId in collapsedSequenceIdToTarget:
-#                 continue
-#
-#             if seqId in sequenceIds:
-#                 intrPosCnt = 0
-#                 seqPosX = 0
-#
-#             if seqId in sequenceStartPos:
-#                 seqPosX, seqPosY = sequenceStartPos[seqId]
-#             else:
-#                 if seqPosY > maxYPos:
-#                     seqPosY = maxYPos
-#
-#             sequenceId = seqId
-#             shouldBeDone = False
-#
-#             for instType, instrPrmDict in seqList:
-#                 if shouldBeDone:
-#                     raise RuntimeError(f"In sequence {seqId} instruction following a jump")
-#                 shouldBeDone = True
-#
-#                 if not _isInstrTypeAllowed(nodeId, nodeDefnDict["node_type"], seqId, instType):
-#                     raise RuntimeError(f"In sequence {seqId}, instruction type {instType} is not allowed within node type {nodeDefnDict['node_type']}")
-#
-#                 if instType == "INTERNAL_JUMP":
-#                     jumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
-#                 elif instType == "EXTERNAL_JUMP":
-#                     externalLinks.append((currIntNode, 0, instrPrmDict["referenced_id"]))
-#                 elif instType =="CHOICE_DIALOG":
-#                     childIntIds = []
-#                     for cDict in instrPrmDict["choices"]:
-#                         internal_id = nodeId+"_"+str(len(instructions))
-#                         childIntIds.append(internal_id)
-#                         choiceInstrPrm = {"entity_name": instrPrmDict["entity_name"], "menu_text" : cDict["menu_text"], "spoken_text": cDict["spoken_text"], "stage_directions" : cDict["stage_directions"], "line_attributes" : cDict["line_attributes"], "condition": cDict["condition"], "exit_instruction": cDict["exit_instruction"]}
-#                         extCId = get_dialog_line_id(chapterNodeId, instrPrmDict["entity_name"], cDict["menu_text"], cDict["stage_directions"], cDict["spoken_text"])
-#                         instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : internal_id, "parameters" : choiceInstrPrm, "external_id": extCId}
-#                         instructions.append(instrDict)
-#                         instructionPos.append((seqPosX+intrPosCnt, seqPosY))
-#                         sequenceStartPos[cDict["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
-#                         seqPosY += 1
-#                         if currIntNode:
-#                             internalLinks.append((currIntNode, 0, internal_id))
-#                         else:
-#                             anonChoicesThatCanBeLinkedTo.append((seqId, internal_id))
-#                         jumpsToProcess.append((internal_id, 0, cDict["sequence_ref"]))
-#                     intrPosCnt += 1
-#
-#                     if sequenceId != None:
-#                         sequenceToMultipleIntId[sequenceId] = childIntIds
-#                 else:
-#                     intrPosAddX = 1
-#                     intrPosY = seqPosY
-#                     internal_id = nodeId+"_"+str(len(instructions))
-#                     instrPrms = instrPrmDict
-#                     extId = None
-#                     if instType == "IF":
-#                         jumpsToProcess.append((internal_id, 0, instrPrmDict["sequence_ref_true"]))
-#                         jumpsToProcess.append((internal_id, 1, instrPrmDict["sequence_ref_false"]))
-#                         instrPrms = {"eval_condition": instrPrmDict["eval_condition"]}
-#                         sequenceStartPos[instrPrmDict["sequence_ref_true"]] = (seqPosX+intrPosCnt+1, seqPosY)
-#                         seqPosY += 1
-#                         sequenceStartPos[instrPrmDict["sequence_ref_false"]] = (seqPosX+intrPosCnt+1, seqPosY)
-#                         intrPosAddX = 2
-#                     elif instType == "HUB":
-#                         for c in instrPrmDict["choices"]:
-#                             jumpsToProcess.append((internal_id, 0, c["sequence_ref"]))
-#                             sequenceStartPos[c["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
-#                             seqPosY += 1
-#                         instrPrms = {"hub_name" : f"{nodeId}_HUB"}
-#                         if instrPrmDict["original_sequence"]:
-#                             seqenceToNodeIntId[instrPrmDict["original_sequence"]] = internal_id
-#                         intrPosAddX = 2
-#                     elif instType == "GENERIC_HUB":
-#                         for c in instrPrmDict["choices"]:
-#                             jumpsToProcess.append((internal_id, 0, c["sequence_ref"]))
-#                             sequenceStartPos[c["sequence_ref"]] = (seqPosX+intrPosCnt+1, seqPosY)
-#                             seqPosY += 1
-#                         instrPrms = {"hub_name" : f"{internal_id}_HUB"}
-#                         intrPosAddX = 2
-#                     elif instType == "NODE_REF":
-#                         if instrPrmDict["id"] not in allNodeIds:
-#                             raise RuntimeError(f"Unknown node reference {instrPrmDict['id']}")
-#                         if instrPrmDict["id"] in nodesReferenced:
-#                             raise RuntimeError(f"Node {instrPrmDict['id']} has been reference twice")
-#
-#                         nodesReferenced.append(instrPrmDict["id"])
-#                         extId = instrPrmDict["id"]
-#                     elif instType == "DIALOG_LINE":
-#                         entNm = instrPrmDict["entity_name"]
-#                         entTxt = instrPrmDict["spoken_text"]
-#                         nmuTxt = instrPrmDict["menu_text"]
-#                         dsTxt = instrPrmDict["stage_directions"]
-#                         extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
-#
-#                     instrDict = {"instruction_type" : instType, "internal_id" : internal_id, "parameters" : instrPrms, "external_id": extId}
-#                     instructions.append(instrDict)
-#                     instructionPos.append((seqPosX+intrPosCnt, intrPosY))
-#                     intrPosCnt += intrPosAddX
-#                     if currIntNode:
-#                         internalLinks.append((currIntNode, 0, internal_id))
-#                     if sequenceId:
-#                         seqenceToNodeIntId[sequenceId] = internal_id
-#
-#                     sequenceId = None
-#
-#                     currIntNode = internal_id
-#
-#                 shouldBeDone = instType in ["HUB", "IF", "INTERNAL_JUMP", "EXTERNAL_JUMP", "CHOICE_DIALOG"]
-#
-#             seqPosY += 1
-#             if seqPosY > maxYPos:
-#                 maxYPos = seqPosY
-#
-#             # Important: no link accross sequences
-#             currIntNode = None
-#
-#         # print("==== Genreated instructions list")
-#         # print(json.dumps(instructions, indent =2 ))
-#         # print("==== Jumps to process ")
-#         # print(json.dumps(jumpsToProcess, indent =2 ))
-#         # print("==== Anon choices to process ")
-#         # print(json.dumps(anonChoicesThatCanBeLinkedTo, indent =2 ))
-#         # print("==== seqenceToNodeIntId: ")
-#         # print(json.dumps(seqenceToNodeIntId, indent =2 ))
-#
-#         for srcInternId, sourceOutPin, targetSequennce in jumpsToProcess:
-#             if targetSequennce in collapsedSequenceIdToTarget:
-#                 extInt, target = collapsedSequenceIdToTarget[targetSequennce]
-#                 if extInt == "INT":
-#                     found = False
-#                     for possibleLink, targetInternalId in anonChoicesThatCanBeLinkedTo:
-#                         if target == possibleLink:
-#                             internalLinks.append((srcInternId, sourceOutPin, targetInternalId))
-#                             found = True
-#                     if not found:
-#                         if target in seqenceToNodeIntId:
-#                             internalLinks.append((srcInternId, sourceOutPin, seqenceToNodeIntId[target]))
-#                         else:
-#                             for intLink in sequenceToMultipleIntId[target]:
-#                                 internalLinks.append((srcInternId, sourceOutPin, intLink))
-#                 else:
-#                     externalLinks.append((srcInternId, sourceOutPin, target))
-#             else:
-#                 if targetSequennce == nodeId:
-#                     internalLinks.append((srcInternId, sourceOutPin, nodeId))
-#                 else:
-#                     if targetSequennce in seqenceToNodeIntId:
-#                         internalLinks.append((srcInternId, sourceOutPin, seqenceToNodeIntId[targetSequennce]))
-#                     else:
-#                         for intLink in sequenceToMultipleIntId[targetSequennce]:
-#                             internalLinks.append((srcInternId, sourceOutPin, intLink))
-#
-#
-#         # print("==== Internal links")
-#         # print(json.dumps(internalLinks, indent =2 ))
-#         # print("==== External links")
-#         # print(json.dumps(externalLinks, indent =2 ))
-#
-#         for i, cId in enumerate(childIds):
-#             if cId not in nodesReferenced:
-#                 logger.debug(f"{cId} not referenced in parent sequences. Creating island node in {nodeDefnDict['id']}.")
-#                 internal_id = nodeId+"_"+str(len(instructions))
-#                 if cId not in allNodeIds:
-#                     raise RuntimeError(f"Unknown node reference {cId}")
-#                 instrDict = {"instruction_type" : "NODE_REF", "internal_id" : internal_id, "parameters" : {"id" : cId}, "external_id": cId}
-#
-#                 instructions.append(instrDict)
-#                 instructionPos.append((0, seqPosY+1+i))
-#                 seqPosY += 1
-#
-#         if nodeId in embedSequenceWithOutlinksTracker:
-#             for srcL, srcOutPin, tarL in externalLinks:
-#                 if tarL != nodeId:
-#                     raise RuntimeError(f"Node {nodeId} is an embedded node but has an external reference to {tarL}. ie. node {nodeId} was referenced -* but is not the last item in the sequence it is referenced in and also has other external links")
-#
-#         if len(instructions) != len(instructionPos):
-#             raise RuntimeError("Uneven instruction pos arr len")
-#
-#         _check_embedded_nodes(nodeId, nodeDefnDict["node_type"], instructions, nodeIdToDefnDict, nodeIdToParentIdDict)
-#
-#         resDict = { "id": nodeDefnDict["id"],
-#                     "type": nodeDefnDict["node_type"],
-#                     "description": nodeDefnDict["description"],
-#                     "image" : nodeDefnDict["image"],
-#                     "parent" : parentId,
-#                     "internal_content_positions" : instructionPos,
-#                     "internal_content": instructions,
-#                     "internal_links": internalLinks,
-#                     "external_links": externalLinks,
-#                     "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in seqenceToNodeIntId.items() if "~" not in seqId},
-#                     "target_to_multiple_internal_id" : { seqId : tarList for seqId, tarList in sequenceToMultipleIntId.items()} }
-#         if len(addedOnceVars) > 0:
-#             logger.debug(f"Added {len(addedOnceVars)} variable for options that will only be used once")
-#         return resDict, addedOnceVars
-#     except Exception as e:
-#         logger.warning(f"Error while processing node {nodeId}")
-#         raise
 
 def _get_hub_id(nodeDefnDict):
     hubId = f"{nodeDefnDict['id']}_Hub"
@@ -1040,23 +623,6 @@ def _get_hub_id(nodeDefnDict):
         if hasHub:
             return hubId
     return None
-    
-def _get_all_nodes_with_outgoing_links_in_sequences(seqList):
-    # seqList = []
-    #
-    # for node in nodeToDefnDict.values():
-    #     seqList.append(node["start_sequence"])
-    #     seqList.extend(node["referenced_sequences"].values())
-    #
-    # print(len(seqList))
-    
-    ret = []
-    for seq in seqList:
-        seqLen = len(seq)
-        for i, seqInsr in enumerate(seq):
-            if seqInsr[0] == "NODE_REF" and i < seqLen-1:
-                ret.append(seqInsr[1]["id"])
-    return ret
 
 def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChildIdsDict):
     if not parentId:
