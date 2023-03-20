@@ -61,7 +61,7 @@ CHOICE_SINGLE : "Θ"
 CHOICE_INFINITE : "∞"
 
 //conditions
-condition : "C_IF" REST_OF_LINE _NEWLINE
+condition : "SHOW_IF" REST_OF_LINE _NEWLINE
 exit_instruction : "SET" REST_OF_LINE _NEWLINE
 
 // Terminals
