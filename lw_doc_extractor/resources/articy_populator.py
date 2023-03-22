@@ -808,9 +808,9 @@ def main():
                 chapterFragment = articyApi.create_flow_fragment(parentFragment, chapterId, template="Chapter")
                 chapterFragment.SetExternalId(chapterId)
                 logger.info("Created new chapter flow fragment with name {}".format(chapterId))
-                if topFragmentProjektName:
-                    articyApi.create_internal_connection(parentFragment, chapterFragment)
-                    logger.info("Created connection between top level and chapter flow fragment")
+                # if topFragmentProjektName:
+                #     articyApi.create_internal_connection(parentFragment, chapterFragment)
+                #     logger.info("Created connection between top level and chapter flow fragment")
                 
                 create_nodes_internals(articyApi, chapterFragment, sourceObj["nodes"])
                 logger.info("Finished creating flow of flow fragment {} in flow fragment {}".format(chapterId, parentFragment.GetDisplayName()))
