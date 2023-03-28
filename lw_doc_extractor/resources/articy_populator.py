@@ -300,7 +300,7 @@ def getNodeTmpl(node):
 def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, posX, posY):
     logger.debug("In {} creating instruction {}".format(parentNodeId, instruction))
     eventIdInTitle = ["STAGE_EVENT", "SYNC_STAGE_EVENT", "GAME_EVENT_LISTENER", "LOAD_STAGE"]
-    generic  = ["START_QUEST",  "END_QUEST", "THE_END", "SAVE_GAME", "COMMENT", "SEQUENCE_NODE"] + eventIdInTitle
+    generic  = ["START_QUEST", "END_QUEST", "ACTIVATE_QUEST_TARGET", "DEACTIVATE_QUEST_TARGET", "THE_END", "SAVE_GAME", "COMMENT", "SEQUENCE_NODE"] + eventIdInTitle
     
     # templateMap = { "START_QUEST" : "StartQuest",
     #                 "END_QUEST" : "EndQuest",
@@ -325,13 +325,20 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
     instrPrm = instruction["parameters"]
     
     if instrType in generic:
+        propertiesToSet = {}
+        descriptionToSet = instrPrm["description"] if "description" in instrPrm and instrPrm["description"] else ""
+        
         if instrType in eventIdInTitle:
             if "event_id" in instrPrm:
                 refId = instrPrm["event_id"]
             else:
                 refId = "{}:{}_{}".format(parentNodeId, "_".join(instrType.split("_")[:2]), "_".join(instrPrm["description"].split(" ")))
-        elif instrType.endswith("_QUEST"):
-            refId = instrPrm["quest_id"]
+        elif instrType.endswith("_QUEST") or instrType.endswith("_QUEST_TARGET"):
+            refId = ("Start" if instrType.startswith("START") else ("End" if instrType.startswith("END") else "Modify")) + " quest " + instrPrm["quest_id"]
+            if instrType != "END_QUEST":
+                actDeact = "" if instrType == "START_QUEST" else (instrType.split("_")[0].lower() + " ")
+                descriptionToSet = "{}\n{}targets: {}".format(descriptionToSet, actDeact, ", ".join(instrPrm["quest_targets"]))
+                propertiesToSet["QuestProperties.QuestTargets"] = ", ".join(instrPrm["quest_targets"])
         elif instrType ==  "SAVE_GAME":
             refId = instrPrm["title"]
         elif instrType == "SEQUENCE_NODE":
@@ -342,10 +349,12 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
             else:
                 refId = "{}:{}".format(parentNodeId, "_".join(instrPrm["description"].split(" ")))
         articyObj = articyApi.create_flow_fragment(flowFragmentObj, refId, template=get_tmpl_nm(instrType))
-        articyObj["Text"] =  instrPrm["description"] if "description" in instrPrm and instrPrm["description"] else ""
+        articyObj["Text"] = descriptionToSet
         cond = instrPrm["condition"] if "condition" in instrPrm else None
         exitInstr = instrPrm["exit_instruction"] if "exit_instruction" in instrPrm else None
         articyApi.set_pin_expressions(articyObj, cond, exitInstr)
+        for propteryKey in propertiesToSet:
+            articyObj[propteryKey] = propertiesToSet[propteryKey]
     elif instrType == "DIALOG_LINE":
         articyObj = articyApi.create_dialog_fragment(flowFragmentObj, instrPrm["spoken_text"], template=None, speaker=instrPrm["entity_name"], menu_text=instrPrm["menu_text"], stage_directions=instrPrm["stage_directions"] )
         articyApi.set_pin_expressions(articyObj, instrPrm["condition"], instrPrm["exit_instruction"])
