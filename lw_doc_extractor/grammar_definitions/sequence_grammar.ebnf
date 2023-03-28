@@ -37,7 +37,7 @@ LINE_ATTIBUTE_VALUE : /[^,\]]+/
 
 // inner statement
 ?inner_statement : "-" inner_statement_cmd _NEWLINE
-?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement | comment_statement | save_game_statement
+?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement | activate_quest_target_statement | deactivate_quest_target_statement | comment_statement | save_game_statement
 
 load_stage_statement : "LOAD_STAGE" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
 stage_event_statement : "STAGE_EVENT" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
@@ -53,8 +53,21 @@ set_statement : "SET" INSTRUCTION
 node_ref_statement : "*" ID
 the_end_statement : "THE_END" STATEMENT_DESCRIPTION?
 
-start_quest_statement : "START_QUEST" QUEST_ID
-end_quest_statement : "END_QUEST" QUEST_ID
+// quest handling
+
+start_quest_statement : "START_QUEST" "{" QUEST_ID "}" STATEMENT_DESCRIPTION _quest_attributes?
+end_quest_statement : "END_QUEST" "{" QUEST_ID "}"
+
+activate_quest_target_statement : "ACTIVATE_QUEST_TARGET" "{" QUEST_ID "}" "[" quest_targets "]"
+deactivate_quest_target_statement : "DEACTIVATE_QUEST_TARGET" "{" QUEST_ID "}" "[" quest_targets "]"
+
+
+_qentity : /[a-zA-Z0-9\-_:]+/
+_quest_attributes: "[" [ _quest_attribute ("," _quest_attribute)* ] "]"
+_quest_attribute : _targets_quest_attribute
+_targets_quest_attribute : "targets" ":" quest_targets
+quest_targets :  _qentity ("|" _qentity)*
+
 
 //
 CHOICE_SINGLE : "Θ"
@@ -71,10 +84,10 @@ REFERENCED_ID : /[A-Za-z0-9\-_]+/
 ENTITY_NAME.-1 : /[A-Z][A-Z0-9\ ]{2,}/
 
 SPOKEN_TEXT: /[^\n\r\(\[]+/
-QUEST_ID : /[^\n\r]+/
+QUEST_ID :  /[A-Za-z0-9\-]+/
 
-STATEMENT_DESCRIPTION : /[^\n\r\{]+/
-EVENT_ID : /[A-Za-z0-9\-_: ]+/
+STATEMENT_DESCRIPTION : /[^\n\r\{\[]+/
+EVENT_ID : /[A-Za-z0-9\-_:]+/
 SAVE_GAME_ID : /[A-Za-z0-9_\-]+/
 
 REST_OF_LINE : /[^\n\r]+/

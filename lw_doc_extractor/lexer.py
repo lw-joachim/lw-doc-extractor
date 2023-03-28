@@ -48,6 +48,15 @@ class StatementTransformer(lark.Transformer):
     
     VALID_LINE_EMOTIONS = ["neutral", "angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "wondering", "amazed", "determined"]
 
+    def _convert_lark_to_json(self, item):
+        if type(item) == lark.Token:
+            tokenNm = item.type.lower()
+            if tokenNm.startswith("__anon"):
+                return item.value.strip()
+            return {item.type.lower() : item.value.strip()}
+        else:
+            return {item.data.lower() : [(None if citem is None else self._convert_lark_to_json(citem)) for citem in item.children]}
+
     def _process_generic_statement_args(self, items, includesCondInst=False, hasDescription=False, defVals={}, transMap={}):
         resp = {}
         resp.update(defVals)
@@ -74,6 +83,8 @@ class StatementTransformer(lark.Transformer):
                     resp['condition'] = item.children[0].value.strip()
                 elif item.data == "exit_instruction":
                     resp['exit_instruction'] = item.children[0].value.strip()
+                else:
+                    resp.update(self._convert_lark_to_json(item))
         return resp
     
     def line_attribute(self, items):
@@ -108,7 +119,13 @@ class StatementTransformer(lark.Transformer):
         return "EXTERNAL_JUMP", self._process_generic_statement_args(items)
     
     def start_quest_statement(self, items):
-        return "START_QUEST", self._process_generic_statement_args(items)
+        return "START_QUEST", self._process_generic_statement_args(items, defVals={"quest_targets": []})
+    
+    def activate_quest_target_statement(self, items):
+        return "ACTIVATE_QUEST_TARGET", self._process_generic_statement_args(items)
+    
+    def deactivate_quest_target_statement(self, items):
+        return "DEACTIVATE_QUEST_TARGET", self._process_generic_statement_args(items)
     
     def end_quest_statement(self, items):
         return "END_QUEST", self._process_generic_statement_args(items)
@@ -375,6 +392,7 @@ def _trans_seq_tree(seqId, NodeGrammar, sequenceLinesList):
     seqText = "\n".join(sequenceLinesList+[""])
     try:
         seqTree = lark.Lark(NodeGrammar, start='sequence', parser='lalr').parse(seqText)
+        #print(seqTree.pretty())
         return StatementTransformer().transform(seqTree)
     except UnexpectedInput as le:
         #errMsg = traceback.format_exc(limit=1)

@@ -150,16 +150,17 @@ def run_main(sriptInputFile, outputPath, rawOutputPath=None, imgOutputPath=None,
     
     logger.info(f"Compilation complete")
     
-    with open(outputPath, "w") as fh:
-        json.dump(resultJson, fh, indent=2)
-        
-    logger.info(f"Final (compiled) output written to {outputPath}")
+    if outputPath:
+        with open(outputPath, "w") as fh:
+            json.dump(resultJson, fh, indent=2)
+            
+        logger.info(f"Final (compiled) output written to {outputPath}")
     
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("input_file", help="The input document file")
-    parser.add_argument("-o", "--output", default="out.json", help="The output file path")
+    parser.add_argument("-o", "--output", help="The output file path")
     parser.add_argument("--output_images", help="If set will save the images into this directory, else a directory will be created next to the output json")
     parser.add_argument("-r", "--raw", help="A slightly formated raw output of the document")
     parser.add_argument("--debug_dir", help="A debug directory into which to write debug files")

@@ -792,6 +792,12 @@ def main():
                     for aChaptFragment in list(parentFragment.GetChildren()):
                         if aChaptFragment.GetDisplayName() == chapterId:
                             foundChapter = aChaptFragment
+                            
+                        # if aChaptFragment.GetDisplayName() == "TestQuest":
+                        #     print(aChaptFragment.GetAvailableProperties(Articy.Api.PropertyFilter.Custom))
+                        #     print(aChaptFragment["QuestProperties.QuestTargets"])
+                        #     aChaptFragment["QuestProperties.QuestTargets"] = aChaptFragment["QuestProperties.QuestTargets"] + str(len(aChaptFragment["QuestProperties.QuestTargets"]))
+
                     if foundChapter:
                         foundChapterInConnections, foundChapterOutConnections, foundSelfConnection = articyApi.get_node_external_connections(foundChapter)
                         logger.info("Found {}, {} and {} incoming, outgoing and self links respectively".format(len(foundChapterInConnections), len(foundChapterOutConnections), len(foundSelfConnection)))
