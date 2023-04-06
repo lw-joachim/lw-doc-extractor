@@ -338,7 +338,8 @@ def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, po
             propertiesToSet["QuestProperties.QuestId"] = instrPrm["quest_id"]
             if instrType != "END_QUEST":
                 actDeact = "" if instrType == "START_QUEST" else (instrType.split("_")[0].lower() + " ")
-                descriptionToSet = "{}\n{}targets: {}".format(descriptionToSet, actDeact, ", ".join(instrPrm["quest_targets"]))
+                if instrType.endswith("_QUEST_TARGET"):
+                    descriptionToSet = "{}\n{}targets: {}".format(descriptionToSet, actDeact, ", ".join(instrPrm["quest_targets"]))
                 propertiesToSet["QuestProperties.QuestTargets"] = ",".join(instrPrm["quest_targets"])
                 
         elif instrType ==  "SAVE_GAME":
