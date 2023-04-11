@@ -326,7 +326,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     scriptDir      = os.path.join(targetStoryDir, "Script")
     audioDir       = os.path.join(targetStoryDir, "Audio")
     audioScriptDir = os.path.join(audioDir, "GeneratedScriptsForAudioRecording")
-    genAudioDir    = os.path.join(audioDir, "GeneratedAudio")
+    genAudioDir    = os.path.join(audioDir, "GeneratedVoicelines")
     recAudioDir    = os.path.join(audioDir, "RecordedVoicelines")
     
     _mkdir_ignore_exists(genFilesDir)
