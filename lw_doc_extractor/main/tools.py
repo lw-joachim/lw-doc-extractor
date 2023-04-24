@@ -20,6 +20,7 @@ import collections
 import csv
 import tempfile
 import shutil
+import datetime
 
 __author__ = 'Joachim Kestner <kestner@lightword.de>'
 
@@ -54,10 +55,9 @@ def _clear_files(dirPath):
             os.unlink(file_path)
         elif os.path.isdir(file_path):
             shutil.rmtree(file_path)
-
-def get_all_lines(compOutDict):
+            
+def get_all_lines(compOutDict, filterEmpty=False):
     retLines = []
-    errCnt = 0
     for n in compOutDict["nodes"]:
         for intrDict in n["internal_content"]:
             if intrDict["instruction_type"] == "DIALOG_LINE":
@@ -68,22 +68,45 @@ def get_all_lines(compOutDict):
                                "stage_directions" : intrDict["parameters"]["stage_directions"],
                                "line_attributes" : intrDict["parameters"]["line_attributes"]}
                 for k, v in diaLineDict.items():
-                    if k == "stage_directions":
-                        continue
-                    elif k == "text":
+                    if k != "stage_directions" and k != "text":
                         if v == None:
-                            logger.info(f"Line does not contain any spoken text. Ignoring. ID {intrDict['external_id']}")
-                            break
-                    elif v == None:
-                        logger.error(f"A line has a null value for {k} which is not allowed. Line id: {diaLineDict['id']}, parent node id: {diaLineDict['parent_node_id']}")
-                        errCnt += 1
-                else:
-                    retLines.append(diaLineDict)
-    if errCnt > 0:
-        raise RuntimeError(f"Encountered errors on {errCnt} lines")
+                            raise RuntimeError(f"A line has a null value for {k} which is not allowed. Line id: {diaLineDict['id']}, parent node id: {diaLineDict['parent_node_id']}")
+                retLines.append(diaLineDict)
+    logger.debug(f"Found {len(retLines)} lines")
+    if filterEmpty:
+        retLines = [l for l in retLines if l["text"] is not None]
+        logger.debug(f"After filtering there remained {len(retLines)} lines")
     return retLines
 
-def extract_dialog_lines():
+# def get_all_lines_excl_empty(compOutDict):
+#     retLines = []
+#     errCnt = 0
+#     for n in compOutDict["nodes"]:
+#         for intrDict in n["internal_content"]:
+#             if intrDict["instruction_type"] == "DIALOG_LINE":
+#                 diaLineDict = {"id" : intrDict["external_id"],
+#                                "parent_node_id" : n["id"],
+#                                "speaker" : intrDict["parameters"]["entity_name"],
+#                                "text" : intrDict["parameters"]["spoken_text"],
+#                                "stage_directions" : intrDict["parameters"]["stage_directions"],
+#                                "line_attributes" : intrDict["parameters"]["line_attributes"]}
+#                 for k, v in diaLineDict.items():
+#                     if k == "stage_directions":
+#                         continue
+#                     elif k == "text":
+#                         if v == None:
+#                             logger.info(f"Line does not contain any spoken text. Ignoring. ID {intrDict['external_id']}")
+#                             break
+#                     elif v == None:
+#                         logger.error(f"A line has a null value for {k} which is not allowed. Line id: {diaLineDict['id']}, parent node id: {diaLineDict['parent_node_id']}")
+#                         errCnt += 1
+#                 else:
+#                     retLines.append(diaLineDict)
+#     if errCnt > 0:
+#         raise RuntimeError(f"Encountered errors on {errCnt} lines")
+#     return retLines
+
+def extract_dialog_lines_cli():
     parser = argparse.ArgumentParser(description="Extract lines from compiler output."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("input_file", help="The compiler output json file")
     parser.add_argument("output_file", help="The output json file")
@@ -96,7 +119,7 @@ def extract_dialog_lines():
         compOutDict = json.load(fh)
         
     with open(args.output_file, "w") as fh:
-        lineDicts = get_all_lines(compOutDict)
+        lineDicts = get_all_lines(compOutDict, filterEmpty=True)
         json.dump(lineDicts, fh, indent=2)
         logger.info(f"Writing lines to {args.output_file}")
     logger.info(f"Final output written to {args.output_file}")
@@ -105,7 +128,7 @@ def generate_audio_recording_files(compilerOutput, outputDir):
     
     nodeIdToTypeMap = get_node_to_types(compilerOutput)
     nodeIdToDescrMap = get_node_to_description(compilerOutput)
-    lineDictList = get_all_lines(compilerOutput)
+    lineDictList = get_all_lines(compilerOutput, filterEmpty=True)
     
     linesForMasterCsv = []
     nodeToLines = collections.OrderedDict()
@@ -357,7 +380,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     generate_audio_recording_files(compOutDict, audioScriptDir)
 
     if generateAudio:
-        generate_audio_files(get_all_lines(compOutDict), genAudioDir, googleAuthFile)
+        generate_audio_files(get_all_lines(compOutDict, filterEmpty=True), genAudioDir, googleAuthFile)
         
     logger.info("Update story chapter process complete")
     
@@ -377,71 +400,189 @@ def update_story_chapter_cli():
     
     k3logging.eval_parser_log_arguments(args)
     
-    genrateAudio = True
+    genrateAudio = False if args.dry_run else True
     if args.dry_run and args.dry_run_dir:
         tmpDir = args.dry_run_dir
-        if not args.dry_run_audio:
-            genrateAudio = False
+        if args.dry_run_audio:
+            genrateAudio = True
     else:
         tmpDirHandle = tempfile.TemporaryDirectory()
         tmpDir = tmpDirHandle.name
     
     update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir, genrateAudio)
+
+def get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=False):
     
-def sort_audio_files_by_emotion_cli():
-    parser = argparse.ArgumentParser(description="Sort audio files by emotion. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument("input_file", help="The compiler output json file")
-    parser.add_argument("input_audio_dir", help="The input directory with all audio files")
-    parser.add_argument("target_output_dir", help="The output directory into which the sorted files will be placed")
+    compOutpath = os.path.join(projectDirectory, "Story", "Chapters", chapterId, "GeneratedFiles", "compiler_output.json")
+    with open(compOutpath) as fh:
+        compOutDict = json.load(fh)
+        
+    return get_all_lines(compOutDict, filterEmpty)
+
+def get_line_audio_state_for_chapter(projectDirectory, chapterId):
+    allChLines = get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=True )
+    
+    allLineIdSet = set([l["id"] for l in allChLines])
+    
+    
+    audioDir = os.path.join(projectDirectory, "Story", "Chapters", chapterId, "Audio")
+    genAudioDir    = os.path.join(audioDir, "GeneratedVoicelines")
+    recAudioDir    = os.path.join(audioDir, "RecordedVoicelines")
+    
+    allRecoredMap = {}
+    allGeneratedMap = {}
+    extraGeneratedPathList = []
+    extraRecordedPathList = []
+        
+    for tAudioId, tAudioFile in [(os.path.splitext(f)[0], f) for f in os.listdir(genAudioDir) if f.endswith(".wav")]:
+        if tAudioId in allLineIdSet:
+            allGeneratedMap[tAudioId] = os.path.join(genAudioDir, tAudioFile)
+        else:
+            extraGeneratedPathList.append(tAudioFile)
+            
+    for dirpath, _dirnames, filenames in os.walk(recAudioDir):
+        for tAudioId, tAudioFile in [(os.path.splitext(f)[0], f) for f in filenames if f.endswith(".wav")]:
+            if tAudioId in allLineIdSet:
+                allRecoredMap[tAudioId] = os.path.join(dirpath, tAudioFile)
+            else:
+                extraRecordedPathList.append(tAudioFile)
+
+    id_to_audio = collections.OrderedDict()
+    missingRecordedList = []
+    missingIdList = []
+    for aId in allLineIdSet:
+        if aId in allRecoredMap:
+            id_to_audio[aId] = allRecoredMap[aId]
+        elif aId in allGeneratedMap:
+            id_to_audio[aId] = allGeneratedMap[aId]
+            missingRecordedList.append(aId)
+        else:
+            missingRecordedList.append(aId)
+            missingIdList.append(aId)
+            
+    retDict = {
+        "id_to_audio" : id_to_audio,
+        "id_to_generated" : allGeneratedMap,
+        "id_to_recorded" : allRecoredMap,
+        "missing_recorded" : missingRecordedList,
+        "missing_ids": missingIdList,
+        "extra_generated" : extraGeneratedPathList,
+        "extra_recorded" : extraRecordedPathList
+        }
+    
+    return retDict
+
+def get_audio_bank_data_for_complete_project(projectDirectory):
+    
+    completeBankMap = collections.OrderedDict()
+    audioErrReport = {}
+    audioBankStateReport = {}
+    audioErrReportKeys = ["missing_recorded", "extra_recorded", "missing_ids", "extra_generated"]
+    
+    for aChapter in ["LF"]: # os.listdir(chaptersDir):
+        lineAudioState = get_line_audio_state_for_chapter(projectDirectory, aChapter)
+        completeBankMap.update(lineAudioState["id_to_audio"])
+        
+        audioBankStateReport[aChapter] = {k: len(lineAudioState[k]) for k in lineAudioState}
+        # sumJson = json.dumps(audioBankStateReport[aChapter])
+        # logger.info(f"{sumJson}")
+        audioErrReport[aChapter] = { k: lineAudioState[k] for k in audioErrReportKeys}
+    
+    return completeBankMap, audioErrReport, audioBankStateReport
+
+def validate_create_audio_bank_for_complete_project(projectDirectory, targetDirectory=None, reportDirectory=None):
+    completeBankMap, audioErrReport, audioBankStateReport = get_audio_bank_data_for_complete_project(projectDirectory)
+    logger.info("Completed extracting project audio state")
+    for chId in audioBankStateReport:
+        logger.info(f"Audio info for chapter {chId}:\n{json.dumps(audioBankStateReport[chId], indent=2)}")
+        
+    if targetDirectory:
+        for lineId in completeBankMap:
+            shutil.copy(completeBankMap[lineId], targetDirectory)
+        
+        logger.info(f"Copied {len(completeBankMap)} files to {targetDirectory}")
+    
+    if reportDirectory:
+        repPrefix = str(datetime.datetime.now().replace(microsecond=0).isoformat()).replace(":", "_")
+        with open(os.path.join(reportDirectory, repPrefix+"_audio_state_summary.json"), "w") as fh:
+            json.dump(audioBankStateReport, fh, indent=2)
+        with open(os.path.join(reportDirectory, repPrefix+"_audio_errors.json"), "w") as fh:
+            json.dump(audioErrReport, fh, indent=2)
+        logger.info(f"Wrote 2 report files to {reportDirectory}")
+        
+def audio_bank_for_complete_project_cli():
+    parser = argparse.ArgumentParser(description="Check and optinally export audio bank. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__))
+    parser.add_argument("project_directory", help="The directory of the project")
+    parser.add_argument("-a", "--audio_dir", help="The directory to export the audio bank to")
+    parser.add_argument("-r", "--report_dir", help="the directory to write the reports to")
     
     k3logging.set_parser_log_arguments(parser)
-
     args = parser.parse_args()
-    
     k3logging.eval_parser_log_arguments(args)
     
-    with open(args.input_file) as fh:
-        compOutDict = json.load(fh)
+    validate_create_audio_bank_for_complete_project(args.project_directory, args.audio_dir, args.report_dir)
     
-    
-    emotionToFileMap = {}
-    
-    lineDicts = get_all_lines(compOutDict)
-    
+def get_sorted_audio_ids_by_emotion(lineDicts):
+    emotionToLineIdMap = {}
     for lineDict in lineDicts:
         if "emotion" in lineDict["line_attributes"]:
             emotionVal = lineDict["line_attributes"]["emotion"]
-            if emotionVal not in emotionToFileMap:
-                emotionToFileMap[emotionVal] = []
+            if emotionVal not in emotionToLineIdMap:
+                emotionToLineIdMap[emotionVal] = []
             
-            emotionToFileMap[emotionVal].append(lineDict["id"])
+            emotionToLineIdMap[emotionVal].append(lineDict["id"])
         else:
-            if "default" not in emotionToFileMap:
-                emotionToFileMap["default"] = []
-            emotionToFileMap["default"].append(lineDict["id"])
+            if "default" not in emotionToLineIdMap:
+                emotionToLineIdMap["default"] = []
+            emotionToLineIdMap["default"].append(lineDict["id"])
+    return emotionToLineIdMap
+
+def sort_audio_files_by_emotion(compilerOutputFilePath, inputAudioDir, targetDirectory):
+    with open(compilerOutputFilePath) as fh:
+        compOutDict = json.load(fh)
+    
+    lineDicts = get_all_lines(compOutDict, filterEmpty=True)
+    emotionToFileMap = get_sorted_audio_ids_by_emotion(lineDicts)
             
     logger.info(f"Found the following emotions: {emotionToFileMap.keys()}")
             
     for em in sorted(emotionToFileMap.keys()):
-        emTarDir = os.path.join(args.target_output_dir, em)
+        emTarDir = os.path.join(targetDirectory, em)
         
         os.mkdir(emTarDir)
         
         for lineId in emotionToFileMap[em]:
             
-            fileNm = f"{lineId}.mp3"
-            srcFilePath = os.path.join(args.input_audio_dir, fileNm)
+            fileNm = f"{lineId}.wav"
+            srcFilePath = os.path.join(inputAudioDir, fileNm)
             
             if not os.path.isfile(srcFilePath):
                 raise RuntimeError(f"Missing audio file {srcFilePath}")
             
             tarFilePath = os.path.join(emTarDir, fileNm)
+            tarFilePath = tarFilePath.replace("#", "_")
             shutil.copy(srcFilePath, tarFilePath)
             logger.debug(f"Copied {srcFilePath} to {tarFilePath}")
             
         logger.info(f"Copied {len(emotionToFileMap[em])} audio files for emotion {em}")
         
     logger.info("Completed grouping audio files by emotion")
+    
+
+def sort_audio_files_by_emotion_cli():
+    parser = argparse.ArgumentParser(description="Sort audio files into folders by their emotion. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument("input_file", help="The compiler output json file")
+    parser.add_argument("input_audio_dir", help="The input directory with all audio files")
+    parser.add_argument("target_output_dir", help="The output directory into which the sorted files will be placed. Needs to be empty")
+    
+    k3logging.set_parser_log_arguments(parser)
+
+    args = parser.parse_args()
+    
+    k3logging.eval_parser_log_arguments(args)
+    sort_audio_files_by_emotion(args.input_file, args.input_audio_dir, args.target_output_dir)
+    
+    
     
     
     
