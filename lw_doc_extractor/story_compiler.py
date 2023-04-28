@@ -358,7 +358,10 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
                             internalLinks.append((prevSeqEndIntId, 0, currIntNode))
                     previousSequencesToContinueOnFrom.clear()
             if instType == "INTERNAL_JUMP":
-                internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
+                if "_" not in instrPrmDict["referenced_id"]:
+                    internalJumpsToProcess.append((currIntNode, 0, nodeId + "_" + instrPrmDict["referenced_id"]))
+                else:
+                    internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
             elif instType == "EXTERNAL_JUMP":
                 externalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
             
@@ -531,7 +534,15 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
     
     seqNameToSeqInstrDict = {}
     seqNameToSeqInstrDict[f"{nodeId}_start_sequence"] = nodeDefnDict["start_sequence"]
-    seqNameToSeqInstrDict.update(nodeDefnDict["referenced_sequences"])
+    
+    for refSeqNm in nodeDefnDict["referenced_sequences"]:
+        if "_" in refSeqNm:
+            seqNameToSeqInstrDict[refSeqNm] = nodeDefnDict["referenced_sequences"][refSeqNm]
+        else:
+            fixedRefSeqNm = nodeId + "_" + refSeqNm
+            seqNameToSeqInstrDict[fixedRefSeqNm] = nodeDefnDict["referenced_sequences"][refSeqNm]
+    
+    seqNameToSeqInstrDict.update()
     
     sequenceToIntId = {}
     instrContainer = InstructionsContainer()
