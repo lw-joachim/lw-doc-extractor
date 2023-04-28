@@ -12,13 +12,13 @@ def prog4():
     logging.basicConfig(level=logging.DEBUG)
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        sys.argv = [old_sys_argv[0]] + ["-vv", r"test_files\manual\comp_output.json", r"test_files\lines.json"]
+        sys.argv = [old_sys_argv[0]] + ["-v", r"test_files\manual\comp_output.json", r"test_files\lines.json"]
         
     tools.extract_dialog_lines_cli()
     
     with open("test_files\lines.json") as fh:
         al = json.load(fh)
-    tools.generate_audio_files(al, "audio_out", "test_files\\oo5_key.json")
+    tools.update_audio_files(al, r"test_files\audio_out", "test_files\\oo5_key.json")
 
 
 def prog1():
@@ -82,7 +82,7 @@ def prog5r():
     with open("test_files\\real\\lines.json") as fh:
         al = json.load(fh)
     # "C:\work\plastic_cloud\ONEof500-Game\One\Story\LF\\audio_out"
-    tools.generate_audio_files(al, "test_files\\audio_out", "test_files\\oo5_key.json")
+    tools.update_audio_files(al, "test_files\\audio_out", "test_files\\oo5_key.json")
     
 def prog6r():
     logging.basicConfig(level=logging.DEBUG)
@@ -93,7 +93,7 @@ def prog6r():
     
     tools.generate_audio_recording_files_cli()
     
-def prog7t():
+def prog_update_story_dry_run():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         shutil.rmtree("test_files\\dry_run_dir")
@@ -115,7 +115,9 @@ def prog_update_story():
 def export_audio_bank():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        shutil.rmtree(r"test_files\audio_exp\audio")
+        shutil.rmtree(r"test_files\audio_exp")
+        os.mkdir(r"test_files\audio_exp")
+        #shutil.rmtree(r"test_files\audio_exp\audio")
         os.mkdir(r"test_files\audio_exp\audio")
         sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One", "-r", r"test_files\audio_exp", "-a", r"test_files\audio_exp\audio"]
     tools.audio_bank_for_complete_project_cli()
@@ -123,7 +125,7 @@ def export_audio_bank():
 def sort_audio_bank_emotion():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
-        shutil.rmtree(r"test_files\audio_exp\sorted")
+        shutil.rmtree(r"test_files\audio_exp\sorted", ignore_errors=True)
         os.mkdir(r"test_files\audio_exp\sorted")
         sys.argv = [old_sys_argv[0]] + ["-v", r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\GeneratedFiles\compiler_output.json", r"test_files\audio_exp\audio", r"test_files\audio_exp\sorted"]
     tools.sort_audio_files_by_emotion_cli()
@@ -137,16 +139,17 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    #prog1()
+    prog4()
     #prog3()
-    #prog1r()
+    #prog1t()
     #prog3r()
     #prog6r()
     #prog7t()
     
     #prog3t()
     #prog8t()
+    #prog_update_story_dry_run()
     #prog_update_story()
-    export_audio_bank()
-    sort_audio_bank_emotion()
+    #export_audio_bank()
+    #sort_audio_bank_emotion()
     

@@ -48,13 +48,17 @@ def _mkdir_ignore_exists(dirPath):
         if e.errno != errno.EEXIST:
             raise
 
-def _clear_files(dirPath):
+def _clear_files(dirPath, ignoreList=[]):
+    numDeleted = 0
     for filename in os.listdir(dirPath):
+        if filename in ignoreList:
+            continue
         file_path = os.path.join(dirPath, filename)
         if os.path.isfile(file_path) or os.path.islink(file_path):
             os.unlink(file_path)
         elif os.path.isdir(file_path):
             shutil.rmtree(file_path)
+    logger.info(f"From {dirPath} deleted {numDeleted} paths")
             
 def get_all_lines(compOutDict, filterEmpty=False):
     retLines = []
@@ -240,7 +244,16 @@ def generate_audio_recording_files_cli():
     generate_audio_recording_files(compOutDict, args.output_directory)
 
 
-def generate_audio_files(lineDictList, outputDirectory, authFile):
+def update_audio_files(lineDictList, outputDirectory, authFile):
+    allResultFilesToDict={lineDict["id"]+".wav" : lineDict for lineDict in lineDictList}
+    _clear_files(outputDirectory, ignoreList=list(allResultFilesToDict.keys()))
+    alreadyExistingFiles = []
+    for filename in os.listdir(outputDirectory):
+        if filename in allResultFilesToDict:
+            alreadyExistingFiles.append(filename)
+    
+    lineDictsToGenerate = [allResultFilesToDict[f] for f in allResultFilesToDict if f not in alreadyExistingFiles]
+    
     #gspeech_synthesis.set_google_application_credentials_global(authFile)
     speechGenClient = gspeech_synthesis.GTextToSpeechClient(authFile)
     random.seed(3)
@@ -272,12 +285,15 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
     
     if not os.path.isdir(outputDirectory):
         raise RuntimeError(f"Invalid output directory {outputDirectory}")
-    numLines = len(lineDictList)
+    numLines = len(lineDictsToGenerate)
     logger.info(f"Generating audio files for {numLines} audio lines")
-    for i, lineDict in enumerate(lineDictList):
+    for i, lineDict in enumerate(lineDictsToGenerate):
+        fileNm = lineDict["id"]+".wav"
+        if fileNm in alreadyExistingFiles:
+            continue
         if i % 20 == 0 and i != 0:
             logger.info(f"Generated {i} audio files out of {numLines}")
-        outfile = os.path.join(outputDirectory, lineDict["id"]+".wav")
+        outfile = os.path.join(outputDirectory, fileNm)
         if lineDict["speaker"] in speakerToVoiceMap:
             voice, speed, pitch = speakerToVoiceMap[lineDict["speaker"]]
         elif lineDict["speaker"] in mappedSpeakerToVoiceMap:
@@ -294,7 +310,7 @@ def generate_audio_files(lineDictList, outputDirectory, authFile):
     logger.info(f"Finished generating {numLines} audio files")
         
 
-def generate_audio_files_cli():
+def update_audio_files_cli():
     parser = argparse.ArgumentParser(description="Generate audio files for given lines. "+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("input_file", help="The lines json file")
     parser.add_argument("--auth_file", required=True, help="The google server credentials file")
@@ -315,11 +331,11 @@ def generate_audio_files_cli():
     with open(args.input_file) as fh:
         lineDictList = json.load(fh)
     
-    generate_audio_files(lineDictList, args.ouput_directory, args.auth_file)
+    update_audio_files(lineDictList, args.ouput_directory, args.auth_file)
     
     logger.info(f"Final output written to {args.ouput_directory}")
     
-def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir, generateAudio):
+def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir, updateAudioFiles):
     
     if not scriptInputFile.endswith(".docx") or not os.path.isfile(scriptInputFile):
         raise RuntimeError(f"Input file is not a valid docx file: {scriptInputFile}")
@@ -361,7 +377,6 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     _clear_files(genFilesDir)
     _clear_files(scriptDir)
     _clear_files(audioScriptDir)
-    _clear_files(genAudioDir)
     
     shutil.copy(tmpCompOutFile, os.path.join(genFilesDir, "compiler_output.json"))
     
@@ -375,12 +390,12 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     with open(authFile, "w") as fh:
         fh.write("{}\n{}".format(articyConfig["user"], articyConfig["password"]))
     
-    cli.run_populator(tmpCompOutFile, targetProject, "One", "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
+    #cli.run_populator(tmpCompOutFile, targetProject, "One", "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
 
     generate_audio_recording_files(compOutDict, audioScriptDir)
 
-    if generateAudio:
-        generate_audio_files(get_all_lines(compOutDict, filterEmpty=True), genAudioDir, googleAuthFile)
+    if updateAudioFiles:
+        update_audio_files(get_all_lines(compOutDict, filterEmpty=True), genAudioDir, googleAuthFile)
         
     logger.info("Update story chapter process complete")
     
