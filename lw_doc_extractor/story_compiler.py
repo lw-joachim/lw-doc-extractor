@@ -309,6 +309,7 @@ class InstructionsContainer:
 def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initialSequnceInstruction):  
     # Deleted todos:
     #  - removed allowed types check
+    logger.debug(f"Processing sequence {sequenceId}")
     
     instructions = InstructionsContainer()
     
@@ -361,6 +362,8 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
                 if "_" not in instrPrmDict["referenced_id"]:
                     internalJumpsToProcess.append((currIntNode, 0, nodeId + "_" + instrPrmDict["referenced_id"]))
                 else:
+                    if not instrPrmDict["referenced_id"].startswith(chapterNodeId):
+                        raise RuntimeError(f"Jump to {instrPrmDict['referenced_id']} has an underscore in it, but does not start with the chapter id {chapterNodeId}")
                     internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
             elif instType == "EXTERNAL_JUMP":
                 externalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
@@ -537,6 +540,8 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
     
     for refSeqNm in nodeDefnDict["referenced_sequences"]:
         if "_" in refSeqNm:
+            if not refSeqNm.startswith(chapterNodeId):
+                raise RuntimeError(f"Sequence {refSeqNm} has an underscore in it, but does not start with the chapter id {chapterNodeId}")
             seqNameToSeqInstrDict[refSeqNm] = nodeDefnDict["referenced_sequences"][refSeqNm]
         else:
             fixedRefSeqNm = nodeId + "_" + refSeqNm
