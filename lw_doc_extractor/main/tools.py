@@ -390,7 +390,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     with open(authFile, "w") as fh:
         fh.write("{}\n{}".format(articyConfig["user"], articyConfig["password"]))
     
-    #cli.run_populator(tmpCompOutFile, targetProject, "One", "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
+    cli.run_populator(tmpCompOutFile, targetProject, "One", "-v", articyConfig["iron_python"], articyConfig["server_host"], articyConfig["server_port"], authFile, articyConfig["articy_api_lib"])
 
     generate_audio_recording_files(compOutDict, audioScriptDir)
 
