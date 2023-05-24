@@ -624,8 +624,8 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
                     "internal_content": allInstructions,
                     "internal_links": allIntLinks,
                     "external_links": allExternalLinks,
-                    "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in sequenceToIntId.items() if "~" not in seqId},
-                    "target_to_multiple_internal_id" : {} }
+                    "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in sequenceToIntId.items() if "~" not in seqId}
+                    }
         if len(addedOnceVars) > 0:
             logger.debug(f"Added {len(addedOnceVars)} variable for options that will only be used once")
         return resDict, allAddedOnceVars, embeddedNodes
@@ -661,9 +661,6 @@ def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChi
     
     parentNode = nodeIdToProcDict[parentId]
     if referenceStr in parentNode["target_to_internal_id"]:
-        return True
-    
-    if referenceStr in parentNode["target_to_multiple_internal_id"]:
         return True
     
     if referenceStr in nodeIdToChildIdsDict[parentNode["id"]]:
