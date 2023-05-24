@@ -59,7 +59,8 @@ setup(
             #'lw-dialog-lines-extract = lw_doc_extractor.main.tools:extract_dialog_lines_cli',
             'lw-audio-generate-placeholder = lw_doc_extractor.main.tools:update_audio_files_cli',
             'lw-generate-recording-scripts = lw_doc_extractor.main.tools:generate_audio_recording_files_cli',
-            'lw-update-story-chapter = lw_doc_extractor.main.tools:update_story_chapter_cli'
+            'lw-update-story-chapter = lw_doc_extractor.main.tools:update_story_chapter_cli',
+            'lw-generate-audio-bank = lw_doc_extractor.main.tools:audio_bank_for_complete_project_cli'
             # , ...
         ]
     }

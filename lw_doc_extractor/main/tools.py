@@ -303,7 +303,7 @@ def update_audio_files(lineDictList, outputDirectory, authFile):
             speed = 1.0 # random.uniform(1, 1)
             pitch = random.uniform(-5.0, 5.0)
             mappedSpeakerToVoiceMap[lineDict["speaker"]] = voice, speed, pitch
-        
+        logger.info(f"Generating audio for line {lineDict['id']} with {voice} {speed} {pitch}")
         speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
         time.sleep(0.4)
         
@@ -494,7 +494,7 @@ def get_audio_bank_data_for_complete_project(projectDirectory):
     audioBankStateReport = {}
     audioErrReportKeys = ["missing_recorded", "extra_recorded", "missing_ids", "extra_generated"]
     
-    for aChapter in ["LF"]: # os.listdir(chaptersDir):
+    for aChapter in os.listdir(os.path.join(projectDirectory, "Story", "Chapters")):
         lineAudioState = get_line_audio_state_for_chapter(projectDirectory, aChapter)
         completeBankMap.update(lineAudioState["id_to_audio"])
         
