@@ -303,8 +303,12 @@ def update_audio_files(lineDictList, outputDirectory, authFile):
             speed = 1.0 # random.uniform(1, 1)
             pitch = random.uniform(-5.0, 5.0)
             mappedSpeakerToVoiceMap[lineDict["speaker"]] = voice, speed, pitch
-        logger.info(f"Generating audio for line {lineDict['id']} with {voice} {speed} {pitch}")
-        speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
+        
+        try:
+            speechGenClient.synthesize_speech(lineDict["text"], outfile, voice, speed, pitch)
+        except Exception:
+            logger.warning(f"Generating audioline failed for line {lineDict['id']} with {voice} {speed} {pitch}")
+            logger.warning(f"Text was {lineDict['text']}")
         time.sleep(0.4)
         
     logger.info(f"Finished generating {numLines} audio files")

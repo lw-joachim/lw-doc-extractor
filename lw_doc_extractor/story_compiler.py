@@ -134,7 +134,7 @@ def _isInstrTypeAllowed(nodeType, instrType):
         return False
     
     if instrType == "HUB" and nodeType == "Chapter":
-        return False
+        return True
     
     return True
 
@@ -359,10 +359,10 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
                             internalLinks.append((prevSeqEndIntId, 0, currIntNode))
                     previousSequencesToContinueOnFrom.clear()
             if instType == "INTERNAL_JUMP":
-                if "_" not in instrPrmDict["referenced_id"]:
+                if "_" not in instrPrmDict["referenced_id"] and instrPrmDict["referenced_id"] != "CONTINUE":
                     internalJumpsToProcess.append((currIntNode, 0, nodeId + "_" + instrPrmDict["referenced_id"]))
                 else:
-                    if not instrPrmDict["referenced_id"].startswith(chapterNodeId):
+                    if not instrPrmDict["referenced_id"].startswith(chapterNodeId) and instrPrmDict["referenced_id"] != "CONTINUE":
                         raise RuntimeError(f"Jump to {instrPrmDict['referenced_id']} has an underscore in it, but does not start with the chapter id {chapterNodeId}")
                     internalJumpsToProcess.append((currIntNode, 0, instrPrmDict["referenced_id"]))
             elif instType == "EXTERNAL_JUMP":
@@ -453,7 +453,8 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
     instrArr, posArray = instructions.get_instructions_and_positions()
     return  instrArr, posArray, internalLinks, internalJumpsToProcess, externalJumpsToProcess, endTrailingInternalIds, addedOnceVars
     
-        
+
+
 # rules for automatically creating a link to a hub are
 #  - if the instruction does not contain a link
 #  - then if this node is an embedded node (in the sequence it is embedded in, is not the last instruction in the sequence) then create a return
@@ -486,9 +487,19 @@ def fix_int_jumps_and_trailing_instr(nodeId, instructions, intLinks, internalJum
             
     for srcInternId, sourceOutPin, targetSequennce in internalJumpsToProcess:
         if targetSequennce == "CONTINUE":
-            if not isEmbedded:
-                raise RuntimeError(f"Using a CONTINUE jump in a non embed node {nodeId}")
-            newLinks.append((srcInternId, sourceOutPin, nodeId))
+            # if not isEmbedded:
+            #     raise RuntimeError(f"Using a CONTINUE jump in a non embed node {nodeId}")
+            # newLinks.append((srcInternId, sourceOutPin, nodeId))#
+            
+            if isEmbedded:
+                newLinks.append((srcInternId, sourceOutPin, nodeId))
+                logger.info(f"Bc of CONTINUE for instruction with ID '{srcInternId}' adding internal return jump to {nodeId}")
+            elif parentHub != None:
+                newExtLinks.append((srcInternId, sourceOutPin, parentHub))
+                logger.info(f"Bc of CONTINUE for instruction with ID '{srcInternId}' adding external jump to {parentHub}")
+            else:
+                raise RuntimeError(f"Cannot link CONTINUE with ID '{srcInternId}'. Not embedded and no hub to link to")
+            
         elif targetSequennce in sequenceIdToIntId:
             newLinks.append((srcInternId, sourceOutPin, sequenceIdToIntId[targetSequennce]))
         else:
@@ -498,6 +509,7 @@ def fix_int_jumps_and_trailing_instr(nodeId, instructions, intLinks, internalJum
     
     intIdWithLink = [srcIntId for srcIntId, _srcPinIdx, _tarIntId in intLinks]
     intIdWithLink.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in newLinks])
+    intIdWithLink.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in newExtLinks])
     intIdWithLink.extend([srcIntId for srcIntId, _srcPinIdx, _tarSeq in extJumps]) 
     intIdWithLinkSet = set(intIdWithLink)
     embeddedNodes = []
