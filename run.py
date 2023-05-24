@@ -21,14 +21,14 @@ def prog4():
     tools.update_audio_files(al, r"test_files\audio_out", "test_files\\oo5_key.json")
 
 
-def prog1():
-    print(socket.gethostname())
+def prog1(inpFile):
+    #print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGym.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGymT.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\ChapterLeviesFeast.docx", "-o", "test_files\comp_output.json"]
-        sys.argv = [old_sys_argv[0]] + ["-v", r"test_files\test.docx", "-o", r"test_files\manual\comp_output.json",  "--debug_dir", r"test_files\manual"]
+        sys.argv = [old_sys_argv[0]] + ["-v", inpFile, "-o", r"test_files\manual\comp_output.json",  "--debug_dir", r"test_files\manual"]
     cli.main()
     
 def prog2():
@@ -97,7 +97,19 @@ def prog_update_story_dry_run():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         shutil.rmtree("test_files\\dry_run_dir")
-        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir"]#, "--dry-run-audio"]
+        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"]
+    try:
+        tools.update_story_chapter_cli()
+    finally:
+        print("Done")
+        
+def prog_update_story_gym(dry_run=True):
+    if "shoebill" == socket.gethostname():
+        old_sys_argv = sys.argv
+        if dry_run:
+            if os.path.exists("test_files\\dry_run_dir"):
+                shutil.rmtree("test_files\\dry_run_dir")
+        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json"] + ([] if not dry_run else ["--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"])
     try:
         tools.update_story_chapter_cli()
     finally:
@@ -139,7 +151,8 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    prog4()
+    #prog1(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
+    prog_update_story_gym(False)
     #prog3()
     #prog1t()
     #prog3r()
