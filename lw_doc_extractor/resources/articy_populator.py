@@ -851,7 +851,7 @@ def main():
                             articyApi.create_connection(inConn[0], chapterFragment, inConn[1])
                         logger.info("Created an input connection from: {}, {} -> {}, {}".format(inConn[0].GetTechnicalName(), inConn[1], chapterFragment.GetTechnicalName(), inConn[2]))
                     
-                    maxOutPinIdx = 0
+                    maxOutPinIdx = len(chapterFragment.GetOutputPins()) - 1
                     for outConn in foundChapterOutConnections:
                         outPinIdx = outConn[1]
                         while outPinIdx > maxOutPinIdx:
