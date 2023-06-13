@@ -1,11 +1,20 @@
 
-node_body : (description_block | description_line)? variables? start_sequence_lines referenced_sequences_lines*
+node_body : (description_block | description_line)? external_connections? external_variables? variables? start_sequence_lines referenced_sequences_lines*
 
 // description
 description_block.4 : "DESCRIPTION_BLOCK" _NEWLINE DESCR_LINE+ "DESCRIPTION_BLOCK_END" _NEWLINE
 description_line.3 : "DESCRIPTION" DESCR_LINE
 
 DESCR_LINE.-1 : /[^\§\n\r]*/ _NEWLINE
+
+// external_connections
+external_connections : "EXTERNAL_CONNECTIONS" _NEWLINE external_connection+ "EXTERNAL_CONNECTIONS_END" _NEWLINE
+external_connection: ID _NEWLINE
+
+
+// external_variables
+external_variables: "EXTERNAL_VARIABLES" _NEWLINE ext_var_line+ "EXTERNAL_VARIABLES_END" _NEWLINE
+ext_var_line: VARIABLE _NEWLINE
 
 // flags
 variables.2 : "VARIABLES" _NEWLINE var_line+ "VARIABLES_END" _NEWLINE

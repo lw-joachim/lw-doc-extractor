@@ -345,6 +345,10 @@ class NodeTransformer(lark.Transformer):
                     nodeDict["description"] = "\n".join([d.value.strip() for d in item.children])
                 elif item.data == "variables":
                     nodeDict["variables"] = item.children
+                elif item.data == "external_connections":
+                    nodeDict["external_connections"] = [d.children[0].value.strip() for d in item.children]
+                elif item.data == "external_variables":
+                    nodeDict["external_variables"] = [d.children[0].value.strip() for d in item.children] 
                 else:
                     raise RuntimeError(f"Unexpected tree {item.data} in node_body")
             else:
@@ -364,8 +368,15 @@ class DocTransformer(lark.Transformer):
     #             nodeDict["image"] =item.children[0].value
 
     def node_definition(self, items):
-        nodeDict = {"id" : None, "node_type" : None, "description": None, "image" : None, "variables" : None,
-                    "start_sequence" : None, "start_sequence_lines" : None,
+        nodeDict = {"id" : None,
+                    "node_type" : None,
+                    "description": None,
+                    "image" : None,
+                    "variables" : [],
+                    "external_variables" : [],
+                    "external_connections" : [],
+                    "start_sequence" : None,
+                    "start_sequence_lines" : None,
                     "referenced_sequences": collections.OrderedDict(),
                     "referenced_sequences_lines" : collections.OrderedDict(),
                     "node_lines" : None}

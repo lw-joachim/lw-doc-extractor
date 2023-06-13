@@ -624,7 +624,8 @@ def process_node(chapterNodeId, nodeId, parentId, childIds, isEmbedded, nodeIdTo
                     "internal_content": allInstructions,
                     "internal_links": allIntLinks,
                     "external_links": allExternalLinks,
-                    "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in sequenceToIntId.items() if "~" not in seqId}
+                    "target_to_internal_id" : { seqId : tarIntId for seqId, tarIntId in sequenceToIntId.items() if "~" not in seqId},
+                    "defined_external_connections" : nodeDefnDict["external_connections"]
                     }
         if len(addedOnceVars) > 0:
             logger.debug(f"Added {len(addedOnceVars)} variable for options that will only be used once")
@@ -652,7 +653,10 @@ def _get_hub_id(nodeDefnDict):
             return hubId
     return None
 
-def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChildIdsDict):
+def checkExtRefValidRecusive(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChildIdsDict):
+    if referenceStr in nodeIdToProcDict[nodeId]["defined_external_connections"]:
+        return True
+    
     if not parentId:
         return False
     
@@ -666,7 +670,7 @@ def checkInParents(referenceStr, nodeId, parentId, nodeIdToProcDict, nodeIdToChi
     if referenceStr in nodeIdToChildIdsDict[parentNode["id"]]:
         return True
     
-    return checkInParents(referenceStr, nodeId, parentNode["parent"], nodeIdToProcDict, nodeIdToChildIdsDict)
+    return checkExtRefValidRecusive(referenceStr, nodeId, parentNode["parent"], nodeIdToProcDict, nodeIdToChildIdsDict)
         
 
 def _checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
@@ -678,7 +682,7 @@ def _checkExternalReferences(processNodesList, nodeIdToChildIdsDict):
     for n in processNodesList:
         np = n["parent"]
         for _, _, lTarget in n["external_links"]:
-            valid = checkInParents(lTarget, n["id"], np, nodeIdToProcDict, nodeIdToChildIdsDict)
+            valid = checkExtRefValidRecusive(lTarget, n["id"], np, nodeIdToProcDict, nodeIdToChildIdsDict)
             if not valid:
                 logger.warning(f"Unknown external reference {lTarget} in node {n['id']}")
                 errCnt += 1;

@@ -25,6 +25,7 @@ def prog1(inpFile):
     #print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
+        shutil.rmtree(r"test_files\manual", ignore_errors=True)
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGym.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\StoryGymT.docx", "-o", "test_files\comp_output.json"] 
         #sys.argv = [old_sys_argv[0]] + ["-vv", "test_files\ChapterLeviesFeast.docx", "-o", "test_files\comp_output.json"]
@@ -93,11 +94,11 @@ def prog6r():
     
     tools.generate_audio_recording_files_cli()
     
-def prog_update_story_dry_run():
+def prog_update_story_dry_run(chapterDoc):
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         shutil.rmtree("test_files\\dry_run_dir")
-        sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"]
+        sys.argv = [old_sys_argv[0]] + ["-v", chapterDoc, "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json", "--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"]
     try:
         tools.update_story_chapter_cli()
     finally:
@@ -152,7 +153,9 @@ def prog8t():
     
 if __name__ == '__main__':
     #prog1(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
-    prog_update_story_gym(False)
+    #prog1(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYH\Script\GYH.docx")
+    
+    prog_update_story_gym(True)
     #prog3()
     #prog1t()
     #prog3r()
@@ -161,7 +164,7 @@ if __name__ == '__main__':
     
     #prog3t()
     #prog8t()
-    #prog_update_story_dry_run()
+    #prog_update_story_dry_run(asdf)
     #prog_update_story()
     #export_audio_bank()
     #sort_audio_bank_emotion()

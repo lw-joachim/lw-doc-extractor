@@ -225,8 +225,6 @@ class ArticyApiWrapper:
         
     def get_node_external_connections(self, nodeObj):
         parentChildren = nodeObj.GetParent().GetChildren()
-        print("parentChildren")
-        print(parentChildren)
         
         allConn = []
         for parentChild in parentChildren:
@@ -235,8 +233,6 @@ class ArticyApiWrapper:
             
             #''artObj.ObjectType == ObjectType.Connection
         
-        print("Connections")
-        print(allConn)
         
         inpuntPins = nodeObj.GetInputPins()
         outputPins = nodeObj.GetOutputPins()
@@ -459,18 +455,28 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
     #print(internalIdToNode)
     #print(json.dumps(targetIdToNode, indent=2))
     
+    extDefConToNodeId = {}
+    
     nodeIdToTargetToPinIdx = {}
     
     for node in nodesList:
         nodeId = node["id"]
         #create_external_links(articyApi, nodeIdToTargetToInternalId, nodeIdToInternalIdToLinkObjects, external_links):
         targetToPinIdxDict = {}
-        for _, _, target in node["external_links"]:
+        
+        allTarget = node["defined_external_connections"] + [target for _, _, target in node["external_links"]]
+        for extDefCon in node["defined_external_connections"]:
+            if extDefCon in extDefConToNodeId:
+                raise RuntimeError("Manual external connection '{}' defined twice".format(extDefCon))
+            extDefConToNodeId[extDefCon] = nodeId
+        
+        for target in allTarget:
             if target in targetToPinIdxDict:
                 continue
             if len(targetToPinIdxDict) > 0:
                 globalNodeIdToObject[node["id"]].AddOutputPin()
             targetToPinIdxDict[target] = len(targetToPinIdxDict)
+            
         nodeIdToTargetToPinIdx[nodeId] = targetToPinIdxDict
     
     # print("!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -488,10 +494,13 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
                 srcNodeId = internalIdToNode[srcInternalId]
             if target in nodeIdToNodeDefn:
                 targetNode = nodeIdToNodeDefn[target]["parent"]
-            else:
+            elif target in targetIdToNode:
                 targetNode = targetIdToNode[target]
-                
-            if srcNodeId == targetNode:
+            elif target in extDefConToNodeId:
+                targetNode = extDefConToNodeId[target]
+            else:
+                raise RuntimeError("Unable to find node in which target '{}' was defined".format(target))
+            if srcNodeId == targetNode and target not in extDefConToNodeId:
                 raise RuntimeError("Source {} and target {} are the same.".format(srcInternalId, target))
             
             nodeHierarchy = get_node_hierarchy(nodeIdToParentNodeId, srcNodeId, targetNode)
@@ -511,7 +520,7 @@ def create_external_links(articyApi, nodesList, nodeIdToNodeDefn, nodeIdToTarget
                         lastObj = globalNodeIdToObject[hierNode]
                         lastPinIdx = nodeIdToTargetToPinIdx[hierNode][target]
                         articyApi.create_internal_return_connection(srcObj, lastObj, srcPin, lastPinIdx)
-                elif hierNode == targetNode:
+                elif hierNode == targetNode and target not in extDefConToNodeId:
                     if target in globalNodeIdToObject:
                         targetObj = globalNodeIdToObject[target]
                     else:
