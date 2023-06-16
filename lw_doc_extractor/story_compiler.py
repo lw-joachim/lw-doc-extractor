@@ -698,10 +698,15 @@ def _getCharacterList(nodesList):
                 characterSet.add(instr["parameters"]["entity_name"])
     return list(characterSet)
 
-def _getNodeIdToVariableList(nodesList, addedOnceVars):
+def _getNodeIdToExtVariableList(rawNodesList):
     variableDict = {}
-    varSet = set()
-    for n in nodesList:
+    for n in rawNodesList:
+        variableDict[n["id"].replace("-", "_")] = n["external_variables"]
+    return variableDict
+
+def _getNodeIdToVariableList(rawNodesList, addedOnceVars):
+    variableDict = {}
+    for n in rawNodesList:
         #if n["variables"] is not None:
         variableDict[n["id"].replace("-", "_")] = n["variables"]
         
@@ -737,9 +742,15 @@ def _checkSetVarOk(instrLine, validVariablesSet):
 def _checkCondVarOk(condLine, validVariablesSet):
     return _checkSetVarOk(condLine, validVariablesSet)
 
-def _validateVariables(variableDict, nodesList):
+def _validateVariables(variableDict, nodesList, externalVariableDict):
     validVariablesSet = set()
     
+    for vSetNm, vSetVarList in externalVariableDict.items():
+        if vSetVarList is None:
+            continue
+        for extVar in vSetVarList:
+            validVariablesSet.add(extVar)
+    print(validVariablesSet)
     for vSetNm, vSetVarList in variableDict.items():
         if vSetVarList is None:
             continue
@@ -858,10 +869,9 @@ def compile_story(ast):
     logger.info("Getting variable list")
     resDict["variables"] = _getNodeIdToVariableList(ast["nodes"], allAddedOnceVars)
     logger.info("Getting variable list complete")
-    _validateVariables(resDict["variables"], resDict["nodes"])
+    _validateVariables(resDict["variables"], resDict["nodes"], _getNodeIdToExtVariableList(ast["nodes"]))
     logger.info("Validating variables complete")
     resDict["statistics"] = _calc_stats(resDict)
     logger.info("Calculating statistics complete")
     return resDict
-    
     

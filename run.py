@@ -104,19 +104,19 @@ def prog_update_story_dry_run(chapterDoc):
     finally:
         print("Done")
         
-def prog_update_story_gym(dry_run=True):
+def prog_update_story(docxFilePath, dry_run=True):
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         if dry_run:
             if os.path.exists("test_files\\dry_run_dir"):
                 shutil.rmtree("test_files\\dry_run_dir")
-        sys.argv = [old_sys_argv[0]] + ["-v", r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json"] + ([] if not dry_run else ["--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"])
+        sys.argv = [old_sys_argv[0]] + ["-v", docxFilePath, "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json"] + ([] if not dry_run else ["--dry-run", "--dry-run-dir", "test_files\\dry_run_dir", "--dry-run-audio"])
     try:
         tools.update_story_chapter_cli()
     finally:
         print("Done")
         
-def prog_update_story():
+def prog_update_story_lf():
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
         sys.argv = [old_sys_argv[0]] + ["-v", "test_files\\LF.docx", "C:\work\plastic_cloud\ONEof500-Game\One", "--gauth", "test_files\\oo5_key.json", "--articy-config", "test_files\\articy_config.json"]#, "--dry-run-audio"]
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     #prog1(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
     #prog1(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYH\Script\GYH.docx")
     
-    prog_update_story_gym(True)
+    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYL.docx", dry_run=True)
     #prog3()
     #prog1t()
     #prog3r()
