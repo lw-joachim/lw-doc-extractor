@@ -821,6 +821,7 @@ def main():
 
                     if foundChapter:
                         foundChapterInConnections, foundChapterOutConnections, foundSelfConnection = articyApi.get_node_external_connections(foundChapter)
+                        foundChapterPosition = foundChapter.GetFlowPosition()
                         logger.info("Found {}, {} and {} incoming, outgoing and self links respectively".format(len(foundChapterInConnections), len(foundChapterOutConnections), len(foundSelfConnection)))
                         logger.info("Deleting old chapter with name {}. Technical name: {}".format(foundChapter.GetDisplayName(), foundChapter.GetTechnicalName()))
                         session.DeleteObject(foundChapter)
@@ -843,6 +844,7 @@ def main():
                 logger.info("Finished creating flow of flow fragment {} in flow fragment {}".format(chapterId, parentFragment.GetDisplayName()))
                 
                 if foundChapter:
+                    chapterFragment.SetFlowPosition(foundChapterPosition.X, foundChapterPosition.Y)
                     #chapterFragment = foundChapter
                     for inConn in foundChapterInConnections:
                         if inConn[0] == parentFragment:
