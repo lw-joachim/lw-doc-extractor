@@ -621,7 +621,7 @@ def check_delete_create_variables(session, variables):
     for c in children:
         variableSetNm = str(c)
         if variableSetNm in variables:
-            if variables[variableSetNm] == None:
+            if variables[variableSetNm] == None or len(variables[variableSetNm]) == 0:
                 logger.warning("Deleting unused variable set {}".format(variableSetNm))
                 session.DeleteObject(c)
             else:
@@ -630,7 +630,7 @@ def check_delete_create_variables(session, variables):
             logger.debug("Ignoring variable set {}".format(variableSetNm))
     
     for varSetNm, varDictList in variables.items():
-        if varDictList == None:
+        if varDictList == None or len(varDictList) == 0:
             continue
         
         if varSetNm in varSetsToSyncToObj:
