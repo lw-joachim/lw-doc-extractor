@@ -37,8 +37,9 @@ LINE_ATTIBUTE_VALUE : /[^,\]]+/
 
 // inner statement
 ?inner_statement : "-" inner_statement_cmd _NEWLINE
-?inner_statement_cmd : load_stage_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement | activate_quest_target_statement | deactivate_quest_target_statement | comment_statement | save_game_statement
+?inner_statement_cmd : load_scenario_statement | stage_event_statement | sync_stage_event_statement | game_event_listener_statement | mindset_notification_statement | wiki_notification_statement | set_statement | node_ref_statement | the_end_statement | start_quest_statement | end_quest_statement | activate_quest_target_statement | deactivate_quest_target_statement | comment_statement | save_game_statement
 
+load_scenario_statement :  "LOAD_SCENARIO" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
 load_stage_statement : "LOAD_STAGE" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
 stage_event_statement : "STAGE_EVENT" STATEMENT_DESCRIPTION "{" EVENT_ID "}"
 sync_stage_event_statement : "SYNC_STAGE_EVENT" STATEMENT_DESCRIPTION "{" EVENT_ID "}"

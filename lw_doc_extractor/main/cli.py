@@ -126,6 +126,7 @@ def run_main(sriptInputFile, outputPath, rawOutputPath=None, imgOutputPath=None,
     
         lexOutPath = os.path.join(debugDirPath,"lexer_output.json")
 
+        print(ast)
         with open(lexOutPath, "w") as fh:
             json.dump(ast, fh, indent=2)
     

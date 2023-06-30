@@ -295,7 +295,7 @@ def getNodeTmpl(node):
 
 def create_instruction(articyApi, parentNodeId, flowFragmentObj, instruction, posX, posY):
     logger.debug("In {} creating instruction {}".format(parentNodeId, instruction))
-    eventIdInTitle = ["STAGE_EVENT", "SYNC_STAGE_EVENT", "GAME_EVENT_LISTENER", "LOAD_STAGE"]
+    eventIdInTitle = ["STAGE_EVENT", "SYNC_STAGE_EVENT", "GAME_EVENT_LISTENER", "LOAD_STAGE", "LOAD_SCENARIO"]
     generic  = ["START_QUEST", "END_QUEST", "ACTIVATE_QUEST_TARGET", "DEACTIVATE_QUEST_TARGET", "THE_END", "SAVE_GAME", "COMMENT", "SEQUENCE_NODE"] + eventIdInTitle
     
     # templateMap = { "START_QUEST" : "StartQuest",

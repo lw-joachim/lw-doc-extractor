@@ -138,6 +138,9 @@ class StatementTransformer(lark.Transformer):
     def load_stage_statement(self, items):
         return "LOAD_STAGE", self._process_generic_statement_args(items, hasDescription=True)
     
+    def load_scenario_statement(self, items):
+        return "LOAD_SCENARIO", self._process_generic_statement_args(items, hasDescription=True)
+    
     def sync_stage_event_statement(self, items):
         return "SYNC_STAGE_EVENT", self._process_generic_statement_args(items, hasDescription=True)
     

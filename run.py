@@ -155,7 +155,8 @@ if __name__ == '__main__':
     #prog1(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
     #prog1(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYH\Script\GYH.docx")
     
-    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYL.docx", dry_run=True)
+    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYL.docx", dry_run=False)
+    #prog_update_story(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYL\Script\GYL.docx", dry_run=True)
     #prog3()
     #prog1t()
     #prog3r()
