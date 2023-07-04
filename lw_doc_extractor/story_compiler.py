@@ -245,7 +245,11 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
             entTxt = instructionParameterDictionary["spoken_text"]
             nmuTxt = instructionParameterDictionary["menu_text"]
             dsTxt = instructionParameterDictionary["stage_directions"]
-            extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
+            try:
+                extId = get_dialog_line_id(chapterNodeId, entNm, nmuTxt, dsTxt, entTxt)
+            except:
+                logger.warning(f"InstructionID with error: {instructionId}")
+                raise
         else:
             extId = None
         
@@ -755,8 +759,8 @@ def _checkVarPair(variableName, variableValue, validVariablesToVarDict):
         return True
     
     if variableValue in validVariablesToVarDict:
-        logger.warning(f"Setting and comparing variables not supprted for var {variableName} and {variableValue}")
-        return False
+        #logger.warning(f"Setting and comparing variables not supprted for var {variableName} and {variableValue}")
+        return validVariablesToVarDict[variableValue]["variable_type"] == varType
     
     logger.warning(f"Cannot confirm matching types between {variableName} and {variableValue}")
     return False
@@ -772,9 +776,25 @@ def _checkSetVarOk(instrLine, validVariablesToVarDict):
         return False
     
     varNm, varValToSet = [s.strip() for s in instrFixed.split("=")]
-   
-    return _checkVarPair(varNm, varValToSet, validVariablesToVarDict)
     
+    arithmaticOps = ["+", "-", "/", "*", "%"]
+    
+    otherValsToSet = [varValToSet]
+    for aOp in arithmaticOps:
+        newList = []
+        for ov in otherValsToSet:
+            newVals = [n.strip() for n in ov.split(aOp)]
+            newList.extend(newVals)
+        otherValsToSet = newList
+        
+    if varNm in validVariablesToVarDict and validVariablesToVarDict[varNm]["variable_type"] == "string" and len(otherValsToSet) != 1:
+        logger.warning(f"Set string variable instruction can only be set to a fixed string for variable {varNm}")
+        return False
+    
+    for otherVal in otherValsToSet:
+        if not _checkVarPair(varNm, otherVal, validVariablesToVarDict):
+            return False
+    return True
     # allMatches = VAR_NM_MATCHER.findall(instrFixed)
     # allMatches = [m for m in allMatches if m != "true" and m != "false"]
     # if len(allMatches) == 0:
@@ -795,14 +815,25 @@ def _checkCondVarOk(condLine, validVariablesToVarDict):
     if instrFixed == "":
         return True
     
+    compOp = ["==", "!=", "<=",">=", "<", ">"]
+    
     andList = condLine.split("||")
     for andpair in andList:
         varpairs = andpair.split("&&")
         for varpair in varpairs:
-            if varpair.count("==") != 1:
+            totCount = 0
+            
+            usedOp = None
+            for op in compOp:
+                oc = varpair.count(op)
+                if oc > 0:
+                    totCount += oc
+                    usedOp = op
+            
+            if totCount != 1:
                 logger.warning(f"Found {varpair.count('==')} '==' for a var pair in condition : "+instrFixed)
                 return False
-            varNm, varValToComp = [s.strip() for s in varpair.split("==")]
+            varNm, varValToComp = [s.strip() for s in varpair.split(usedOp)]
             if varValToComp in validVariablesToVarDict:
                 varT = varNm
                 varNm = varValToComp
