@@ -30,13 +30,12 @@ def _format_string(inpStr, validDidgets):
     inpStr = "_".join(inpStr.split())
     return ''.join(c for c in inpStr if c in validDidgets)
 
-def get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText):
+def get_dialog_line_file_nm_lf(enityName, menuText, lineText):
     global _idToOccurenceTracker
     
     en = enityName.strip() if enityName else ""
     mt = menuText.strip() if menuText else ""
     lt = lineText.strip() if lineText else ""
-    sd = stage_directions.strip() if stage_directions else ""
     
     crcStr1 = "{}#{}#{}".format(en, mt, lt)
     
@@ -52,14 +51,20 @@ def get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText):
 
 def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineText):
     if chapterId == "LF":
-        fileNm = get_dialog_line_file_nm_lf(enityName, menuText, stage_directions, lineText)
+        fileNm = get_dialog_line_file_nm_lf(enityName, menuText, lineText)
     else:
         
         en = enityName.strip() if enityName else ""
         mt = menuText.strip() if menuText else ""
         lt = lineText.strip() if lineText else ""
+        sd = stage_directions.strip() if stage_directions else ""
         
-        fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, lt), VALID_DIGITS_FOR_ID)
+        if lt == "…":
+            if not re.search('[a-zA-Z]{3,}', sd):
+                raise RuntimeError(f"Silent dialogue line (…) needs to have a stage direction with 3 or more letters")
+            fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, sd), VALID_DIGITS_FOR_ID)
+        else:
+            fileNmWoHash = _format_string("{}_{}_{}_{}".format(chapterId, en, mt, lt), VALID_DIGITS_FOR_ID)
         hashedStr = hashlib.sha256(fileNmWoHash.encode("utf-8")).hexdigest()[:12].upper()
         
         fileNm = "{}_{}".format(hashedStr, fileNmWoHash)
@@ -719,64 +724,131 @@ def _getNodeIdToVariableList(rawNodesList, addedOnceVars):
     #print(json.dumps(variableDict, indent=2))
     return variableDict
 
-def _checkSetVarOk(instrLine, validVariablesSet):
+def _checkVarPair(variableName, variableValue, validVariablesToVarDict):
+    
+    if variableName not in validVariablesToVarDict:
+        logger.warning("No variable definition to match given variable {}".format(variableName))
+        return False
+    
+    varType = validVariablesToVarDict[variableName]["variable_type"]
+    
+    if variableValue.isdigit():
+        if varType != "int":
+            logger.warning(f"Types for variable {variableName} do not match. Var type is {varType}.  Used type is int")
+            return False
+        return True
+    
+    if variableValue == "true" or variableValue == "false":
+        if varType != "bool":
+            logger.warning(f"Types for variable {variableName} do not match. Var type is {varType}. Used type is boolean")
+            return False
+        return True
+    
+    if (variableValue.startswith("“") and variableValue.endswith("”")) or (variableValue.startswith("\"") and variableValue.endswith("\"")):
+        if varType != "string":
+            logger.warning(f"Types for variable {variableName} do not match. Var type is {varType}. Used type is string")
+            return False
+        stringValToSet = variableValue[1:-1]
+        if stringValToSet not in validVariablesToVarDict[variableName]["validation"]["is_one_of"]:
+            logger.warning(f"For string variable {variableName} trying to use invalid string value {stringValToSet}")
+            return False
+        return True
+    
+    if variableValue in validVariablesToVarDict:
+        logger.warning(f"Setting and comparing variables not supprted for var {variableName} and {variableValue}")
+        return False
+    
+    logger.warning(f"Cannot confirm matching types between {variableName} and {variableValue}")
+    return False
+
+def _checkSetVarOk(instrLine, validVariablesToVarDict):
     instrFixed = "\n".join([l for l in instrLine.split("\n") if not l.strip().startswith("//")])
     
     if instrFixed == "":
         return True
     
-    allMatches = VAR_NM_MATCHER.findall(instrFixed)
-    allMatches = [m for m in allMatches if m != "true" and m != "false"]
-    if len(allMatches) == 0:
-        logger.warning("No matches for variables in line")
+    if instrFixed.count("=") != 1:
+        logger.warning("Set variable instruction has more or less than 1 equal: "+instrFixed)
         return False
     
-    for m in allMatches:
-        if m not in validVariablesSet:
-            logger.warning("No match for {} in line".format(m))
-            return False
-        
-    return True
+    varNm, varValToSet = [s.strip() for s in instrFixed.split("=")]
+   
+    return _checkVarPair(varNm, varValToSet, validVariablesToVarDict)
+    
+    # allMatches = VAR_NM_MATCHER.findall(instrFixed)
+    # allMatches = [m for m in allMatches if m != "true" and m != "false"]
+    # if len(allMatches) == 0:
+    #     logger.warning("No matches for variables in line")
+    #     return False
+    #
+    # for m in allMatches:
+    #     if m not in validVariablesSet:
+    #         logger.warning("No match for {} in line".format(m))
+    #         return False
+    #
+    # return True
     
 
-def _checkCondVarOk(condLine, validVariablesSet):
-    return _checkSetVarOk(condLine, validVariablesSet)
+def _checkCondVarOk(condLine, validVariablesToVarDict):
+    instrFixed = "\n".join([l for l in condLine.split("\n") if not l.strip().startswith("//")])
+    
+    if instrFixed == "":
+        return True
+    
+    andList = condLine.split("||")
+    for andpair in andList:
+        varpairs = andpair.split("&&")
+        for varpair in varpairs:
+            if varpair.count("==") != 1:
+                logger.warning(f"Found {varpair.count('==')} '==' for a var pair in condition : "+instrFixed)
+                return False
+            varNm, varValToComp = [s.strip() for s in varpair.split("==")]
+            if varValToComp in validVariablesToVarDict:
+                varT = varNm
+                varNm = varValToComp
+                varValToComp = varT
+            
+            if not _checkVarPair(varNm, varValToComp, validVariablesToVarDict):
+                #logger.warning(f"In condition comparison between pair {varNm} and {varValToComp} not valid: Condition was '{instrFixed}'")
+                return False
+    return True
 
 def _validateVariables(variableDict, nodesList, externalVariableDict):
-    validVariablesSet = set()
+    validVariablesToVarDict = {}
+    #print(json.dumps(variableDict, indent=2))
     
     for vSetNm, vSetVarList in externalVariableDict.items():
         if vSetVarList is None:
             continue
         for extVar in vSetVarList:
-            validVariablesSet.add(extVar)
-    print(validVariablesSet)
+            validVariablesToVarDict[extVar] = {"variable_type" : "bool"}
+    
     for vSetNm, vSetVarList in variableDict.items():
         if vSetVarList is None:
             continue
         for varDict in vSetVarList:
             t = f"{vSetNm}.{varDict['variable_name']}"
             #print(t)
-            validVariablesSet.add(t)
+            validVariablesToVarDict[t] = varDict
     notOkCont = 0
     for n in nodesList:
         for instr in n["internal_content"]:
             if "condition" in instr["parameters"] and instr["parameters"]["condition"]:
-                if not _checkCondVarOk(instr["parameters"]["condition"], validVariablesSet):
+                if not _checkCondVarOk(instr["parameters"]["condition"], validVariablesToVarDict):
                     logger.warning(f"Condition '{instr['parameters']['condition']}' not ok")
                     notOkCont += 1
             if "exit_instruction" in instr["parameters"] and instr["parameters"]["exit_instruction"]:
-                if not _checkSetVarOk(instr["parameters"]["exit_instruction"], validVariablesSet):
+                if not _checkSetVarOk(instr["parameters"]["exit_instruction"], validVariablesToVarDict):
                     logger.warning(f"Exit instruction '{instr['parameters']['exit_instruction']}' not ok")
                     notOkCont += 1
                     
             if "instruction" in instr["parameters"] and instr["parameters"]["instruction"]:
-                if not _checkSetVarOk(instr["parameters"]["instruction"], validVariablesSet):
+                if not _checkSetVarOk(instr["parameters"]["instruction"], validVariablesToVarDict):
                     logger.warning(f"Set instruction '{instr['parameters']['instruction']}' not ok")
                     notOkCont += 1
             
             if "eval_condition" in instr["parameters"] and instr["parameters"]["eval_condition"]:
-                if not _checkCondVarOk(instr["parameters"]["eval_condition"], validVariablesSet):
+                if not _checkCondVarOk(instr["parameters"]["eval_condition"], validVariablesToVarDict):
                     logger.warning(f"Eval condition '{instr['parameters']['eval_condition']}' not ok")
                     notOkCont += 1
                     

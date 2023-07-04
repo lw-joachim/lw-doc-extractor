@@ -648,8 +648,8 @@ def check_delete_create_variables(session, variables):
             varDef   = varDict["variable_default_value"]
             varDescr = varDict["description"]
             varType  = varDict["variable_type"]
-            if varType != "bool" and varType != "int":
-                raise RuntimeError("Only bools and ints are supported at the moment")
+            if varType != "bool" and varType != "int" and varType != "string":
+                raise RuntimeError("Only bools, strings and ints are supported at the moment")
             vRef = None
             if varNm in childRefDict:
                 currVal = childRefDict[varNm]["DefaultValue"]

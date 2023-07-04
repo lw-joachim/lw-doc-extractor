@@ -18,10 +18,13 @@ ext_var_line: VARIABLE _NEWLINE
 
 // flags
 variables.2 : "VARIABLES" _NEWLINE var_line+ "VARIABLES_END" _NEWLINE
-var_line : VARIABLE "=" VALUE FLAG_DESCR? _NEWLINE
+var_line : VARIABLE "=" (VALUE | str_enum) FLAG_DESCR? _NEWLINE
 VALUE : ("true" | "false" | /[0-9]+/)
 VARIABLE : /[A-Za-z_.0-9]+/
 FLAG_DESCR : "(" /[^\)]+/ ")"
+str_enum : STR_VAL "[" ENUM_VAL ("," ENUM_VAL)* "]"
+STR_VAL: /[“"][A-Za-z][A-Za-z_0-9]*[”"]/
+ENUM_VAL :  /[A-Za-z][A-Za-z_0-9]*/
 
 // sequence defn
 start_sequence_lines.-1 : sequence

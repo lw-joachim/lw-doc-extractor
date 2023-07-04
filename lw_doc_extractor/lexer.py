@@ -44,6 +44,9 @@ _GRAMMAR_FOLDER = os.path.join(_FILE_LOC, "grammar_definitions")
 #
 # """, start='script', parser='earley')
 
+def _fix_cond_instr_str(thestring):
+    return thestring.strip().replace("“", '"').replace("”", '"')
+
 class StatementTransformer(lark.Transformer):
     
     VALID_LINE_EMOTIONS = ["neutral", "angry", "annoyed", "disgusted", "afraid", "happy", "sad", "surprised", "thoughtful", "amazed", "determined"]
@@ -78,13 +81,15 @@ class StatementTransformer(lark.Transformer):
                     resp["entity_name"] = item.value.strip().replace(" ", "_")
                 elif item.type == "EVENT_ID":
                     resp["event_id"] = item.value.strip().replace(" ", "_")
+                elif item.type == "INSTRUCTION":
+                    resp['instruction'] = _fix_cond_instr_str(item.value)
                 else:
                     resp[item.type.lower()] = item.value.strip()
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    resp['condition'] = item.children[0].value.strip()
+                    resp['condition'] = _fix_cond_instr_str(item.children[0].value)
                 elif item.data == "exit_instruction":
-                    resp['exit_instruction'] = item.children[0].value.strip()
+                    resp['exit_instruction'] = _fix_cond_instr_str(item.children[0].value)
                 else:
                     resp.update(self._convert_lark_to_json(item))
             elif type(item) == dict:
@@ -226,9 +231,9 @@ class StatementTransformer(lark.Transformer):
                     raise RuntimeError(f"Unexpected token {item.type} in hub_choice")
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    returnDict["condition"] = item.children[0].value.strip()
+                    returnDict["condition"] = _fix_cond_instr_str(item.children[0].value)
                 elif item.data == "exit_instruction":
-                    returnDict["exit_instruction"] = item.children[0].value.strip()
+                    returnDict["exit_instruction"] = _fix_cond_instr_str(item.children[0].value)
                 elif item.data == "inner_sequence":
                     returnDict["sequence"] = item.children
                 else:
@@ -259,9 +264,9 @@ class StatementTransformer(lark.Transformer):
                     raise RuntimeError(f"Unexpected token {item.type} in player_choice")
             elif type(item) == lark.Tree:
                 if item.data == "condition":
-                    returnDict["condition"] = item.children[0].value.strip()
+                    returnDict["condition"] = _fix_cond_instr_str(item.children[0].value)
                 elif item.data == "exit_instruction":
-                    returnDict["exit_instruction"] = item.children[0].value.strip()
+                    returnDict["exit_instruction"] = _fix_cond_instr_str(item.children[0].value)
                 elif item.data == "inner_sequence":
                     returnDict["sequence"] = item.children
                 # elif item.data == "line_attributes":
@@ -295,7 +300,7 @@ class StatementTransformer(lark.Transformer):
         return [item for item in items if type(item) != lark.Tree or  type(item) != lark.Token]
     
     def if_block(self, items):
-        ret =  "IF", {"eval_condition" : items[0].value.strip(), "sequence_true":items[1].children, "sequence_false": items[2].children}
+        ret =  "IF", {"eval_condition" : _fix_cond_instr_str(items[0].value), "sequence_true":items[1].children, "sequence_false": items[2].children}
         return ret
 
 class NodeTransformer(lark.Transformer):
@@ -311,19 +316,27 @@ class NodeTransformer(lark.Transformer):
     #     return items
     
     def var_line(self, items):
-        itemValStr = items[1].value
-        if itemValStr.lower() == "true":
-            varType = "bool"
-            itemVal = True
-        elif itemValStr.lower() == "false":
-            varType = "bool"
-            itemVal = False
-        elif itemValStr.isdigit():
-            varType = "int"
-            itemVal = int(itemValStr)
+        validationCriteria = {}
+        if type( items[1]) == lark.Tree:
+            defPlusEnumVals = [item.value for item in items[1].children]
+            varType = "string"
+            # remove quotes
+            itemVal = defPlusEnumVals[0][1:-1]
+            validationCriteria = {"is_one_of" : defPlusEnumVals[1:]}
         else:
-            raise RuntimeError(f"Invalid value for variable {items[0].value}: {itemValStr}")
-        retDict = {"variable_name" : items[0].value, "variable_default_value" : itemVal, "description" : None, "variable_type" : varType}
+            itemValStr = items[1].value
+            if itemValStr.lower() == "true":
+                varType = "bool"
+                itemVal = True
+            elif itemValStr.lower() == "false":
+                varType = "bool"
+                itemVal = False
+            elif itemValStr.isdigit():
+                varType = "int"
+                itemVal = int(itemValStr)
+            else:
+                raise RuntimeError(f"Invalid value for variable {items[0].value}: {itemValStr}")
+        retDict = {"variable_name" : items[0].value, "variable_default_value" : itemVal, "description" : None, "variable_type" : varType, "validation" : validationCriteria}
         if len(items) == 3:
             retDict["description"] = items[2].value.strip("(").strip(")")
         return retDict

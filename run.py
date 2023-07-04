@@ -21,7 +21,7 @@ def prog4():
     tools.update_audio_files(al, r"test_files\audio_out", "test_files\\oo5_key.json")
 
 
-def prog1(inpFile):
+def compile_file_manual(inpFile):
     #print(socket.gethostname())
     if "shoebill" == socket.gethostname():
         old_sys_argv = sys.argv
@@ -152,10 +152,10 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    #prog1(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
+    #compile_file_manual(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
     #prog1(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYH\Script\GYH.docx")
     
-    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYL.docx", dry_run=False)
+    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", dry_run=True)
     #prog_update_story(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYL\Script\GYL.docx", dry_run=True)
     #prog3()
     #prog1t()
