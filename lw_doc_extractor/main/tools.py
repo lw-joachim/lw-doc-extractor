@@ -60,7 +60,7 @@ def _clear_files(dirPath, ignoreList=[]):
             shutil.rmtree(file_path)
     logger.info(f"From {dirPath} deleted {numDeleted} paths")
             
-def get_all_lines(compOutDict, filterEmpty=False):
+def get_all_lines(compOutDict, filterEmpty=False, filterSilent=False):
     retLines = []
     for n in compOutDict["nodes"]:
         for intrDict in n["internal_content"]:
@@ -80,35 +80,11 @@ def get_all_lines(compOutDict, filterEmpty=False):
     if filterEmpty:
         retLines = [l for l in retLines if l["text"] is not None]
         logger.debug(f"After filtering there remained {len(retLines)} lines")
+    if filterSilent:
+        retLines = [l for l in retLines if l["text"] != "…"]
+        logger.debug(f"After filtering … there remained {len(retLines)} lines")
+    filterSilent
     return retLines
-
-# def get_all_lines_excl_empty(compOutDict):
-#     retLines = []
-#     errCnt = 0
-#     for n in compOutDict["nodes"]:
-#         for intrDict in n["internal_content"]:
-#             if intrDict["instruction_type"] == "DIALOG_LINE":
-#                 diaLineDict = {"id" : intrDict["external_id"],
-#                                "parent_node_id" : n["id"],
-#                                "speaker" : intrDict["parameters"]["entity_name"],
-#                                "text" : intrDict["parameters"]["spoken_text"],
-#                                "stage_directions" : intrDict["parameters"]["stage_directions"],
-#                                "line_attributes" : intrDict["parameters"]["line_attributes"]}
-#                 for k, v in diaLineDict.items():
-#                     if k == "stage_directions":
-#                         continue
-#                     elif k == "text":
-#                         if v == None:
-#                             logger.info(f"Line does not contain any spoken text. Ignoring. ID {intrDict['external_id']}")
-#                             break
-#                     elif v == None:
-#                         logger.error(f"A line has a null value for {k} which is not allowed. Line id: {diaLineDict['id']}, parent node id: {diaLineDict['parent_node_id']}")
-#                         errCnt += 1
-#                 else:
-#                     retLines.append(diaLineDict)
-#     if errCnt > 0:
-#         raise RuntimeError(f"Encountered errors on {errCnt} lines")
-#     return retLines
 
 def extract_dialog_lines_cli():
     parser = argparse.ArgumentParser(description="Extract lines from compiler output."+"\n\nAuthor: {}\nVersion: {}".format(__author__,__version__), formatter_class=ArgumentDefaultsHelpFormatter)
@@ -132,7 +108,7 @@ def generate_audio_recording_files(compilerOutput, outputDir):
     
     nodeIdToTypeMap = get_node_to_types(compilerOutput)
     nodeIdToDescrMap = get_node_to_description(compilerOutput)
-    lineDictList = get_all_lines(compilerOutput, filterEmpty=True)
+    lineDictList = get_all_lines(compilerOutput, filterEmpty=True, filterSilent=True)
     
     linesForMasterCsv = []
     nodeToLines = collections.OrderedDict()
@@ -399,7 +375,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     generate_audio_recording_files(compOutDict, audioScriptDir)
 
     if updateAudioFiles:
-        update_audio_files(get_all_lines(compOutDict, filterEmpty=True), genAudioDir, googleAuthFile)
+        update_audio_files(get_all_lines(compOutDict, filterEmpty=True, filterSilent=True), genAudioDir, googleAuthFile)
         
     logger.info("Update story chapter process complete")
     
@@ -430,16 +406,16 @@ def update_story_chapter_cli():
     
     update_story_chapter(args.input_file, args.project_directory, args.gauth, args.articy_config, args.dry_run, tmpDir, genrateAudio)
 
-def get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=False):
+def get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=False, filterSilent=False):
     
     compOutpath = os.path.join(projectDirectory, "Story", "Chapters", chapterId, "GeneratedFiles", "compiler_output.json")
     with open(compOutpath) as fh:
         compOutDict = json.load(fh)
         
-    return get_all_lines(compOutDict, filterEmpty)
+    return get_all_lines(compOutDict, filterEmpty, filterSilent)
 
 def get_line_audio_state_for_chapter(projectDirectory, chapterId):
-    allChLines = get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=True )
+    allChLines = get_all_lines_for_chapter(projectDirectory, chapterId, filterEmpty=True, filterSilent=True )
     
     allLineIdSet = set([l["id"] for l in allChLines])
     
@@ -560,7 +536,7 @@ def sort_audio_files_by_emotion(compilerOutputFilePath, inputAudioDir, targetDir
     with open(compilerOutputFilePath) as fh:
         compOutDict = json.load(fh)
     
-    lineDicts = get_all_lines(compOutDict, filterEmpty=True)
+    lineDicts = get_all_lines(compOutDict, filterEmpty=True, filterSilent=True)
     emotionToFileMap = get_sorted_audio_ids_by_emotion(lineDicts)
             
     logger.info(f"Found the following emotions: {emotionToFileMap.keys()}")
