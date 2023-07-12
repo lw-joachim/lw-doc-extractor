@@ -300,7 +300,17 @@ class StatementTransformer(lark.Transformer):
         return [item for item in items if type(item) != lark.Tree or  type(item) != lark.Token]
     
     def if_block(self, items):
-        ret =  "IF", {"eval_condition" : _fix_cond_instr_str(items[0].value), "sequence_true":items[1].children, "sequence_false": items[2].children}
+        return self.if_elseif(items)
+    
+    def if_elseif(self, items):
+        elseSeq = None
+        if len(items) == 3:
+            if type(items[2]) == lark.Tree and items[2].data == "if_else":
+                elseSeq = items[2].children[0].children
+            else:
+                elseSeq = [items[2]]
+        
+        ret =  "IF", {"eval_condition" : _fix_cond_instr_str(items[0].value), "sequence_true":items[1].children, "sequence_false": elseSeq}
         return ret
 
 class NodeTransformer(lark.Transformer):

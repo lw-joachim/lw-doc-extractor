@@ -167,7 +167,7 @@ def _check_embedded_nodes_and_instructions(nodeId, nodeType, instructions, nodeI
             if nodeType == "Section" and embeddedType in ["Chapter", "Section"]:
                 raise RuntimeError(f"Section node {nodeId} embeds node of type {embeddedType} ({refNodeId}) which is not allowed")
             
-            if nodeType == "SubSection" and embeddedType in ["Chapter", "Section", "SubSection"]:
+            if nodeType == "SubSection" and embeddedType in _EMBED_ALLOWED_LIST: #["Chapter", "Section", "SubSection"]:
                 raise RuntimeError(f"SubSection node {nodeId} embeds node of type {embeddedType} ({refNodeId}) which is not allowed")
         
             if nodeType == "GameplaySection" and embeddedType in _EMBED_ALLOWED_LIST:
@@ -221,7 +221,11 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
         choiceSeqIdFalse = f"{instructionId}_false"
         
         subSequencesMap[choiceSeqIdTrue] = (instructionParameterDictionary["sequence_true"], None)
-        subSequencesMap[choiceSeqIdFalse] = (instructionParameterDictionary["sequence_false"], None)
+        if instructionParameterDictionary["sequence_false"] == None:
+            rawInstr = ("SET", {"instruction": "//dummy else sequence"})
+            subSequencesMap[choiceSeqIdFalse] = ([rawInstr], None)
+        else:
+            subSequencesMap[choiceSeqIdFalse] = (instructionParameterDictionary["sequence_false"], None)
         
         customPinsForSubSequenceMap[choiceSeqIdFalse] = 1
         

@@ -12,7 +12,9 @@ hub_statement_block :  "-" "HUB" _NEWLINE hub_choice+ "HUB_CHOICE_END" _NEWLINE
 hub_choice : (CHOICE_SINGLE | CHOICE_INFINITE) STATEMENT_DESCRIPTION "{" EVENT_ID "}" _NEWLINE condition? exit_instruction? inner_sequence
 
 // if
-if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence "ELSE" _NEWLINE inner_sequence "END_IF" _NEWLINE
+if_block : "IF" REST_OF_LINE _NEWLINE inner_sequence (if_else | if_elseif)? "END_IF" _NEWLINE
+if_else : "ELSE" _NEWLINE inner_sequence
+if_elseif : "ELSE_IF" REST_OF_LINE _NEWLINE inner_sequence (if_else | if_elseif)?
 
 // jump statement
 ?jump_statements : internal_jump_statement | external_jump_statement
