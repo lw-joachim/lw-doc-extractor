@@ -141,9 +141,12 @@ def _isInstrTypeAllowed(nodeType, instrType):
     if instrType == "HUB" and nodeType == "Chapter":
         return True
     
+    if instrType == "HUB" and nodeType == "GameplaySection":
+        return True
+    
     return True
 
-_EMBED_ALLOWED_LIST = ["Chapter", "Section", "SubSection"]
+_EMBED_ALLOWED_LIST = ["Chapter", "Section", "SubSection", "GameplaySection"]
 
 def _check_embedded_nodes_and_instructions(nodeId, nodeType, instructions, nodeIdToDefnDict, nodeIdToParentIdDict):
     for instrDict in instructions:
@@ -158,14 +161,17 @@ def _check_embedded_nodes_and_instructions(nodeId, nodeType, instructions, nodeI
             if nodeType not in _EMBED_ALLOWED_LIST:
                 raise RuntimeError(f"Node {nodeId} embeds node {refNodeId}, but its of node type {nodeType} which cant embed other nodes")
             
-            if nodeType == "Chapter" and embeddedType == "SubSection":
-                raise RuntimeError(f"Chapter node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
-                
-            if nodeType == "SubSection" and embeddedType == "SubSection":
-                raise RuntimeError(f"SubSection node {nodeId} embeds node of type SubSection {refNodeId} which is not allowed")
+            if nodeType == "Chapter" and embeddedType in ["SubSection", "Chapter"]:
+                raise RuntimeError(f"Chapter node {nodeId} embeds node of type SubSection or Chapter {refNodeId} which is not allowed")
             
-            if nodeType == "SubSection" and embeddedType == "Section":
-                raise RuntimeError(f"SubSection node {nodeId} embeds node of type Section {refNodeId} which is not allowed")
+            if nodeType == "Section" and embeddedType in ["Chapter", "Section"]:
+                raise RuntimeError(f"Section node {nodeId} embeds node of type {embeddedType} ({refNodeId}) which is not allowed")
+            
+            if nodeType == "SubSection" and embeddedType in ["Chapter", "Section", "SubSection"]:
+                raise RuntimeError(f"SubSection node {nodeId} embeds node of type {embeddedType} ({refNodeId}) which is not allowed")
+        
+            if nodeType == "GameplaySection" and embeddedType in _EMBED_ALLOWED_LIST:
+                raise RuntimeError(f"GameplaySection node {nodeId} embeds other node {refNodeId} of type {embeddedType} which is not allowed")
         if not _isInstrTypeAllowed(nodeType, instrType):
             raise RuntimeError(f"In node '{nodeId}', instruction type '{instrType}' is not allowed within node type '{nodeType}'")
 

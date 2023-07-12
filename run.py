@@ -132,7 +132,7 @@ def export_audio_bank():
         os.mkdir(r"test_files\audio_exp")
         #shutil.rmtree(r"test_files\audio_exp\audio")
         os.mkdir(r"test_files\audio_exp\audio")
-        sys.argv = [old_sys_argv[0]] + ["-v", "C:\work\plastic_cloud\ONEof500-Game\One", "-r", r"test_files\audio_exp", "-a", r"test_files\audio_exp\audio"]
+        sys.argv = [old_sys_argv[0]] + ["-vv", "C:\work\plastic_cloud\ONEof500-Game\One", "-r", r"test_files\audio_exp", "-a", r"test_files\audio_exp\audio"]
     tools.audio_bank_for_complete_project_cli()
         
 def sort_audio_bank_emotion():
@@ -153,10 +153,10 @@ def prog8t():
     
 if __name__ == '__main__':
     #compile_file_manual(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
-    #prog1(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYH\Script\GYH.docx")
+    #compile_file_manual(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\ORA\Script\ORA.docx")
+    #compile_file_manual(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF.docx")
     
     prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", dry_run=True)
-    #prog_update_story(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\GYL\Script\GYL.docx", dry_run=True)
     #prog3()
     #prog1t()
     #prog3r()

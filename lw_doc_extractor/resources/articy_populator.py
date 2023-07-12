@@ -280,6 +280,7 @@ def getNodeTmpl(node):
     typeMap = { "Chapter"    : "Chapter",
                 "Section"    : "Section",
                 "SubSection" : "SubSection",
+                "GameplaySection" : "GameplaySection",
                 "D-EAV" : "D_EAV",
                 "D-DEF" : "D_DEF",
                 "D-NPC" : "D_NPC",
