@@ -83,6 +83,14 @@ def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineTex
     return fileNm
     
 
+def detect_dup_nodes(nodeList):
+    nodeNmTracker = set()
+    # n["id"]: n for n
+    for n in nodeList:
+        if n["id"] in nodeNmTracker:
+            raise RuntimeError(f"Node {n['id']} has been defined twice")
+        nodeNmTracker.add(n["id"])
+
 def build_node_hierarchy(rootNodeId, nodeToDefnDict):
     nodeIdToParentIdDict = {}
     for k in nodeToDefnDict:
@@ -932,6 +940,7 @@ def _calc_stats(resDict):
     return ret
 
 def compile_story(ast):
+    detect_dup_nodes(ast["nodes"])
     nodeToDefnDict = {n["id"]: n for n in ast["nodes"]}
     #nodeToDefnDict[ast["chapter_node"]["id"]] = ast["chapter_node"]
     chapterNodeId = [n["id"] for n in ast["nodes"] if n["node_type"] == "Chapter"][0]
