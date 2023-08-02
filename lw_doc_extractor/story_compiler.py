@@ -125,7 +125,7 @@ def _isInstrTypeAllowed(nodeType, instrType):
     if nodeType == "C-SEG":
         return False
     
-    if nodeType in ["C-CUT", "C-SAC"]:
+    if nodeType in ["C-CUT", "C-SAC", "C-CNM"]:
         if instrType == "DIALOG_LINE":
             return True
         if nodeType == "C-SAC":

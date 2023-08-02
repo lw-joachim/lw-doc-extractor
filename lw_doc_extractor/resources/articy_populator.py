@@ -287,6 +287,7 @@ def getNodeTmpl(node):
                 "D-AWD" : "D_AWD",
                 "D-SWD" : "D_SWD",
                 "C-CUT" : "C_CUT",
+                "C-CNM" : "C_CNM",
                 "C-SEG" : "C_SEG",
                 "C-SAC" : "C_SAC"
                 }
