@@ -246,11 +246,14 @@ class StatementTransformer(lark.Transformer):
         return "HUB", items
     
     def player_choice(self, items):
-        returnDict = {"menu_text" : None, "spoken_text" : None, "stage_directions" : None, "line_attributes" : {}, "condition" : None, "exit_instruction": None, "sequence" : None, "once": False}
+        menuSlotMap = {"⇐" : "W", "⇑" : "N", "⇒" : "E", "⇓" : "S", "⇖" : "NW", "⇗" : "NE", "⇘" : "SE", "⇙" : "SW"}
+        returnDict = {"menu_text" : None, "menu_slot" : None, "spoken_text" : None, "stage_directions" : None, "line_attributes" : {}, "condition" : None, "exit_instruction": None, "sequence" : None, "once": False}
         for item in items:
             if type(item) == lark.Token:
                 if item.type == "MENU_TEXT":
                     returnDict["menu_text"] = item.value.strip()
+                elif item.type == "MENU_SLOT":
+                    returnDict["menu_slot"] = menuSlotMap[item.value.strip()]
                 elif item.type == "SPOKEN_TEXT":
                     returnDict["spoken_text"] = item.value.strip()
                 elif item.type == "STAGE_DIRECTIONS":

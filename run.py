@@ -152,11 +152,12 @@ def prog8t():
     
     
 if __name__ == '__main__':
-    #compile_file_manual(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
-    #compile_file_manual(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\ORA\Script\ORA.docx")
+    compile_file_manual(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx")
+    #compile_file_manual(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\ORA.docx")
     #compile_file_manual(r"C:\work\plastic_cloud\ONEof500-Game\One\Story\Chapters\LF\Script\LF.docx")
     
-    prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", dry_run=True)
+    #prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\GYH.docx", dry_run=False)
+    #prog_update_story(r"C:\Users\joachim\Documents\OneOf500ChapterScripts\ORA.docx", dry_run=False)
     #prog3()
     #prog1t()
     #prog3r()

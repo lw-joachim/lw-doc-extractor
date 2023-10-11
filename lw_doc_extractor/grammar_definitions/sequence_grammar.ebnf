@@ -27,7 +27,7 @@ simple_dialog_line.-2 : ENTITY_NAME STAGE_DIRECTIONS? line_attributes? _NEWLINE 
 
 choice_dialog_statement.-1 : ENTITY_NAME _NEWLINE player_choice_block
 player_choice_block : "PLAYER_CHOICE" _NEWLINE player_choice+ "PLAYER_CHOICE_END" _NEWLINE 
-player_choice : (CHOICE_SINGLE | CHOICE_INFINITE) "[" MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? line_attributes? _NEWLINE condition? exit_instruction? inner_sequence
+player_choice : (CHOICE_SINGLE | CHOICE_INFINITE) "[" MENU_SLOT? MENU_TEXT "]" SPOKEN_TEXT? STAGE_DIRECTIONS? line_attributes? _NEWLINE condition? exit_instruction? inner_sequence
 
 line_attributes :  "[" line_attribute ("," line_attribute)* "]"
 
@@ -97,7 +97,8 @@ REST_OF_LINE : /[^\n\r]+/
 COMMENT_TEXT : /[^\n\r]+/
 INSTRUCTION : /[^\n\r]+/
 
-MENU_TEXT : /[^\]]+/
+MENU_SLOT : "⇐"|"⇑"|"⇒"|"⇓"|"⇖"|"⇗"|"⇘"|"⇙"
+MENU_TEXT : /[^\]⇐⇑⇒⇓⇖⇗⇘⇙]+/
 
 STAGE_DIRECTIONS : /\([^\)]*\)/
 

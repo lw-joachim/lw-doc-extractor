@@ -191,6 +191,7 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
     if intructionType =="CHOICE_DIALOG":
         choices = [dict(c) for c in instructionParameterDictionary["choices"]]
         choiceSequenceIds = []
+        usedSlots = set();
         for cCount, choice in enumerate(choices):
             choiceSeqId = f"{instructionId}_dc{cCount}"
             choiceSequenceIds.append(choiceSeqId)
@@ -199,13 +200,19 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
                 addedOnceVars.add(varNm)
                 choice["condition"] = choice["condition"] + f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
                 choice["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
+            mnSltPre = ""
+            if choice["menu_slot"]:
+                mnSltPre = "{" + choice["menu_slot"] + "}"
+                usedSlots.add(choice["menu_slot"])
             
-            choiceInstrPrm = {"entity_name": instructionParameterDictionary["entity_name"], "menu_text" : choice["menu_text"], "spoken_text": choice["spoken_text"], "stage_directions" : choice["stage_directions"], "line_attributes" : choice["line_attributes"], "condition": choice["condition"], "exit_instruction": choice["exit_instruction"]}
+            choiceInstrPrm = {"entity_name": instructionParameterDictionary["entity_name"], "menu_text" : mnSltPre + choice["menu_text"], "spoken_text": choice["spoken_text"], "stage_directions" : choice["stage_directions"], "line_attributes" : choice["line_attributes"], "condition": choice["condition"], "exit_instruction": choice["exit_instruction"]}
             extCId = get_dialog_line_id(chapterNodeId, instructionParameterDictionary["entity_name"], choice["menu_text"], choice["stage_directions"], choice["spoken_text"])
             choiceInternalId = choiceSeqId+"_init"+str(choiceSeqId)
             instrDict = {"instruction_type" : "DIALOG_LINE", "internal_id" : choiceInternalId, "parameters" : choiceInstrPrm, "external_id": extCId}
 
             subSequencesMap[choiceSeqId] = (choice["sequence"], instrDict)
+        if len(usedSlots) != 0 and len(usedSlots) != len(choices):
+            raise RuntimeError(f"Mixing (missing) or duplicate slot annotation for {instructionId}")
     elif intructionType == "HUB":
         hubInstrPrms = {"hub_name" : f"{chapterNodeId}_HUB"}
         processedInstruction = {"instruction_type" : "HUB", "internal_id" : instructionId, "parameters" : hubInstrPrms, "external_id": None}
