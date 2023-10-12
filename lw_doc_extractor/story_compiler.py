@@ -81,7 +81,21 @@ def get_dialog_line_id(chapterId, enityName, menuText, stage_directions, lineTex
         _idToOccurenceTracker[fileNm] = 1
     
     return fileNm
+
+_gameEventIdToOccurenceTracker = {}
+def get_game_event_listener_id(nodeId, gameEventString):
+    if len(gameEventString.split()) > 1:
+        raise RuntimeError("Game event listener '{gameEventString}' in node {nodeId} contains whitespace")
+    idStr = nodeId + ":" + gameEventString
+    idStr = "_".join(idStr.split(":"))
+    idStr = ''.join(c for c in idStr if c in VALID_DIGITS_FOR_ID)
     
+    if idStr in _gameEventIdToOccurenceTracker:
+        _gameEventIdToOccurenceTracker[idStr] = _gameEventIdToOccurenceTracker[idStr] + 1
+        idStr = idStr + f"_{_gameEventIdToOccurenceTracker[idStr]}"
+    else:
+        _gameEventIdToOccurenceTracker[idStr] = 1
+    return idStr
 
 def detect_dup_nodes(nodeList):
     nodeNmTracker = set()
@@ -183,7 +197,7 @@ def _check_embedded_nodes_and_instructions(nodeId, nodeType, instructions, nodeI
         if not _isInstrTypeAllowed(nodeType, instrType):
             raise RuntimeError(f"In node '{nodeId}', instruction type '{instrType}' is not allowed within node type '{nodeType}'")
 
-def process_instruction(chapterNodeId, instructionId, intructionType, instructionParameterDictionary):
+def process_instruction(chapterNodeId, nodeId, instructionId, intructionType, instructionParameterDictionary):
     processedInstruction = None
     addedOnceVars = set()
     customPinsForSubSequenceMap = {}
@@ -228,7 +242,7 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
                 coiceInstrDict["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
                 coiceInstrDict["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
             choiceInternalId = choiceSeqId+"_gel"+str(choiceSeqId)
-            choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict, "external_id" : None}
+            choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict, "external_id" : get_game_event_listener_id(nodeId, choice["event_id"])}
             
             subSequencesMap[choiceSeqId] = (choice["sequence"], choiceInstrDict)
     elif intructionType == "IF":
@@ -260,11 +274,13 @@ def process_instruction(chapterNodeId, instructionId, intructionType, instructio
             #     coiceInstrDict["condition"] = choice["condition"] +  f" && {varNm} == false" if choice["condition"] else  f"{varNm} == false"
             #     coiceInstrDict["exit_instruction"] = choice["exit_instruction"] +  f"; {varNm} = true" if choice["exit_instruction"] else  f"{varNm} = true"
             choiceInternalId = choiceSeqId+"_gel"
-            choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict, "external_id": None}
+            choiceInstrDict = {"instruction_type" : "GAME_EVENT_LISTENER", "internal_id" : choiceInternalId, "parameters" : coiceInstrDict, "external_id": get_game_event_listener_id(nodeId, choice["event_id"])}
             subSequencesMap[choiceSeqId] = (choice["sequence"], choiceInstrDict)
     else:
         if intructionType == "NODE_REF":
             extId = instructionParameterDictionary["id"]
+        elif intructionType == "GAME_EVENT_LISTENER":
+            extId = get_game_event_listener_id(nodeId, instructionParameterDictionary["event_id"])
         elif intructionType == "DIALOG_LINE":
             entNm = instructionParameterDictionary["entity_name"]
             entTxt = instructionParameterDictionary["spoken_text"]
@@ -412,7 +428,7 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
             hubIntId = hubSeqId+"_0"
             #internalJumpsToProcess.append((currIntNode, 0, hubSeqId))
             
-            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, hubIntId, instType, instrPrmDict)
+            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, nodeId, hubIntId, instType, instrPrmDict)
 
             # hubSeqNodeInstrDict = {"instruction_type" : "SEQUENCE_NODE", "internal_id" : hubIntId, "parameters" : {"sequence_name":hubSeqId}, "external_id": hubSeqId}
             # newSequences[hubSeqId] = ([hubSeqNodeInstrDict, processedInstruction], None)
@@ -421,7 +437,7 @@ def process_sequence(chapterNodeId, nodeId, sequenceId, instructionList, initial
             
         else:
             instrId = "{}_{}".format(sequenceId, i)
-            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, instrId, instType, instrPrmDict)
+            processedInstruction, newAddedOnceVars, newSequences, customPinsForSubSequenceMap = process_instruction(chapterNodeId, nodeId, instrId, instType, instrPrmDict)
             if instType == "THE_END":
                 lastWasJumpOrEnd = True
                 
