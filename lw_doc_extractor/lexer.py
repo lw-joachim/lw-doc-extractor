@@ -294,7 +294,7 @@ class StatementTransformer(lark.Transformer):
         return items
     
     def choice_dialog_statement(self, items):
-        return "CHOICE_DIALOG", {"entity_name" : items[0].value, "choices" : items[1]}
+        return "CHOICE_DIALOG", {"entity_name" : items[0].value.strip().replace(" ", "_"), "choices" : items[1]}
     
     def sequence(self, items):
         filteredItems = [item for item in items if type(item) == lark.Tree or  type(item) == lark.Token]

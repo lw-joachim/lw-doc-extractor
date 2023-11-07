@@ -885,7 +885,7 @@ def _checkCondVarOk(condLine, validVariablesToVarDict):
                 return False
     return True
 
-def _validateVariables(variableDict, nodesList, externalVariableDict):
+def _validateAndFixVariableUsages(variableDict, nodesList, externalVariableDict):
     validVariablesToVarDict = {}
     #print(json.dumps(variableDict, indent=2))
     
@@ -906,20 +906,24 @@ def _validateVariables(variableDict, nodesList, externalVariableDict):
     for n in nodesList:
         for instr in n["internal_content"]:
             if "condition" in instr["parameters"] and instr["parameters"]["condition"]:
+                instr["parameters"]["condition"] = _fix_var_usage(instr["parameters"]["condition"], validVariablesToVarDict)
                 if not _checkCondVarOk(instr["parameters"]["condition"], validVariablesToVarDict):
                     logger.warning(f"Condition '{instr['parameters']['condition']}' not ok")
                     notOkCont += 1
             if "exit_instruction" in instr["parameters"] and instr["parameters"]["exit_instruction"]:
+                instr["parameters"]["exit_instruction"]  = _fix_var_usage(instr["parameters"]["exit_instruction"], validVariablesToVarDict)
                 if not _checkSetVarOk(instr["parameters"]["exit_instruction"], validVariablesToVarDict):
                     logger.warning(f"Exit instruction '{instr['parameters']['exit_instruction']}' not ok")
                     notOkCont += 1
                     
             if "instruction" in instr["parameters"] and instr["parameters"]["instruction"]:
+                instr["parameters"]["instruction"] = _fix_var_usage(instr["parameters"]["instruction"], validVariablesToVarDict)
                 if not _checkSetVarOk(instr["parameters"]["instruction"], validVariablesToVarDict):
                     logger.warning(f"Set instruction '{instr['parameters']['instruction']}' not ok")
                     notOkCont += 1
             
             if "eval_condition" in instr["parameters"] and instr["parameters"]["eval_condition"]:
+                instr["parameters"]["eval_condition"] = _fix_var_usage(instr["parameters"]["eval_condition"], validVariablesToVarDict)
                 if not _checkCondVarOk(instr["parameters"]["eval_condition"], validVariablesToVarDict):
                     logger.warning(f"Eval condition '{instr['parameters']['eval_condition']}' not ok")
                     notOkCont += 1
@@ -936,6 +940,14 @@ def _parents_in_error_nodes(parentId, nodeIdToParentIdDict, errorSet):
     
     return _parents_in_error_nodes(nodeIdToParentIdDict[parentId], nodeIdToParentIdDict, errorSet)
 
+def _fix_var_usage(varLine, validVariablesToVarDict):
+    testLine = varLine.replace("-", "_")
+    resLine = varLine
+    for v in validVariablesToVarDict:
+        findIdx = testLine.find(v)
+        if findIdx > -1 and v not in varLine:
+            resLine = resLine[:findIdx] + v + resLine[findIdx+len(v):]  
+    return resLine
 
 def _calc_stats(resDict):
     ret = {}
@@ -1014,7 +1026,7 @@ def compile_story(ast):
     logger.info("Getting variable list")
     resDict["variables"] = _getNodeIdToVariableList(ast["nodes"], allAddedOnceVars)
     logger.info("Getting variable list complete")
-    _validateVariables(resDict["variables"], resDict["nodes"], _getNodeIdToExtVariableList(ast["nodes"]))
+    _validateAndFixVariableUsages(resDict["variables"], resDict["nodes"], _getNodeIdToExtVariableList(ast["nodes"]))
     logger.info("Validating variables complete")
     resDict["statistics"] = _calc_stats(resDict)
     logger.info("Calculating statistics complete")

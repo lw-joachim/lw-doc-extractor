@@ -84,7 +84,7 @@ exit_instruction : "SET" REST_OF_LINE _NEWLINE
 ID : /[A-Za-z0-9\-_]+/
 REFERENCED_ID : /[A-Za-z0-9\-_]+/
 
-ENTITY_NAME.-1 : /[A-Z][A-Z0-9\ ]{2,}/
+ENTITY_NAME.-1 : /[A-Z][A-Z0-9\ _]{2,}/
 
 SPOKEN_TEXT: /[^\n\r\(\[]+/
 QUEST_ID :  /[A-Za-z0-9\-]+/
