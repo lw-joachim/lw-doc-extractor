@@ -104,6 +104,18 @@ def extract_dialog_lines_cli():
         logger.info(f"Writing lines to {args.output_file}")
     logger.info(f"Final output written to {args.output_file}")
     
+def _get_audio_summary_for_recording(lineDictList):
+    resDict = {}
+    for lineDict in lineDictList:
+        speaker = lineDict["speaker"]
+        if speaker not in resDict:
+            resDict[speaker] = {"number_lines" : 0, "number_words" : 0}
+        
+        lineTxt = lineDict["text"]
+        resDict[speaker]["number_lines"] += 1
+        resDict[speaker]["number_words"] += len(lineTxt.split(" "))
+    return resDict
+    
 def generate_audio_recording_files(compilerOutput, outputDir):
     
     nodeIdToTypeMap = get_node_to_types(compilerOutput)
@@ -194,7 +206,10 @@ def generate_audio_recording_files(compilerOutput, outputDir):
             fhFull.close()
             
             logger.info(f"Written {ct} lines for speaker {sp}.")
-            
+    
+    with open(os.path.join(outputDir, 'summary_for_recording.json'), 'w', newline='') as sumFH:
+        json.dump(_get_audio_summary_for_recording(lineDictList), sumFH, indent=2)
+        
     logger.info(f"Finished writing audio recoding script files for {len(speakerList)} characters.")
             
 def generate_audio_recording_files_cli():
