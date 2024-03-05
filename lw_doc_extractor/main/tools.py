@@ -330,6 +330,62 @@ def update_audio_files_cli():
     
     logger.info(f"Final output written to {args.ouput_directory}")
     
+def export_lines_for_loca(compOutputDict, targetFilePath):
+    
+    exportData = []
+    for n in compOutputDict["nodes"]:
+        for intrDict in n["internal_content"]:
+            if intrDict["instruction_type"] == "DIALOG_LINE":
+                prmDict = intrDict["parameters"]
+                if prmDict["spoken_text"] != "…" and prmDict["spoken_text"] is not None:
+                    exportObj = {}
+                    exportObj["id"] = intrDict["external_id"]
+                    exportObj["translation"] = prmDict["spoken_text"]
+                    exportData.append(exportObj)
+                if prmDict["menu_text"] != None:
+                    menuTxt = prmDict["menu_text"]
+                    if "}" in menuTxt:
+                            menuTxt = menuTxt.split("}", maxsplit=1)[1]
+                    menuTextPart = menuTxt.split(":", maxsplit=1)
+                    if len(menuTextPart) == 0 or len(menuTextPart) > 2:
+                        raise RuntimeError("Invalid menu text: {}".format(prmDict["menu_text"]))
+                    exportObjMt = {}
+                    exportObjMt["id"] = intrDict["external_id"] + "_menutext"
+                    if len(menuTextPart) ==  1:
+                        exportObjMt["translation"] = menuTextPart[0].strip()
+                    else:
+                        exportObjMt["translation"] = menuTextPart[1].strip()
+                        exportObjIntent = {}
+                        exportObjIntent["id"] = intrDict["external_id"] + "_intent"
+                        exportObjIntent["translation"] = menuTextPart[0].strip()
+                        exportData.append(exportObjIntent)
+                    exportData.append(exportObjMt)
+    with open(targetFilePath, "w") as fh:
+        json.dump(exportData, fh, indent=2)
+        
+def update_character_loca_file(projectPath):
+    refChapters = ["PRE", "GYH"]
+    exportData = []
+    charSet = set()
+    for c in refChapters:
+        cmpOutPath = os.path.join(projectPath, "Story", "Chapters", c, "GeneratedFiles", "compiler_output.json")
+        with open(cmpOutPath) as fh:
+            compOutDict = json.load(fh)
+            for chara in compOutDict["characters"]:
+                charSet.add(chara)
+    
+    charList = sorted(charSet)
+    for tChar in charList:
+        exportData.append({"id" : f"character_{tChar}",
+                           "translation" : tChar
+                           })
+    # One\Story\Characters\GeneratedFiles\characters_for_loca.json
+    storeLocation = os.path.join(projectPath, "Story", "Characters", "GeneratedFiles")
+    _mkdir_ignore_exists(storeLocation)
+    with open(os.path.join(projectPath, "Story", "Characters", "GeneratedFiles", "characters_for_loca.json"), "w") as fh:
+        json.dump(exportData, fh, indent=2)
+    
+    
 def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, articyConfigPath, dryRun, workingDir, updateAudioFiles):
     
     if not scriptInputFile.endswith(".docx") or not os.path.isfile(scriptInputFile):
@@ -378,6 +434,9 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
     shutil.copy(scriptInputFile, os.path.join(scriptDir, f"{chapterId}.docx"))
     shutil.copy(tmpRawOutFile, os.path.join(scriptDir, f"{chapterId}_raw.txt"))
     
+    export_lines_for_loca(compOutDict, os.path.join(genFilesDir, "lines_for_loca.json"))
+    update_character_loca_file(projectDirectory)
+    
     targetProject = articyConfig["test_project"] if dryRun else articyConfig["project"]
     
     authFile = os.path.join(tmpDir, "authfile")
@@ -391,7 +450,7 @@ def update_story_chapter(scriptInputFile, projectDirectory, googleAuthFile, arti
 
     if updateAudioFiles:
         update_audio_files(get_all_lines(compOutDict, filterEmpty=True, filterSilent=True), genAudioDir, googleAuthFile)
-        
+    
     logger.info("Update story chapter process complete")
     
 def update_story_chapter_cli():
