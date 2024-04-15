@@ -360,6 +360,14 @@ def export_lines_for_loca(compOutputDict, targetFilePath):
                         exportObjIntent["translation"] = menuTextPart[0].strip()
                         exportData.append(exportObjIntent)
                     exportData.append(exportObjMt)
+            if intrDict["instruction_type"] == "START_QUEST":
+                prmDict = intrDict["parameters"]
+                questTile = prmDict["description"]
+                exportObj = {}
+                exportObj["id"] = prmDict["quest_id"] + "_quest_title"
+                exportObj["translation"] = questTile
+                exportData.append(exportObj)
+    
     with open(targetFilePath, "w") as fh:
         json.dump(exportData, fh, indent=2)
         
